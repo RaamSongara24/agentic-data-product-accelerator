@@ -10,6 +10,7 @@ import uvicorn
 from fastapi import FastAPI
 
 from agentic_data_product import __version__
+from agentic_data_product.app.routes.dev_persistence import router as dev_persistence_router
 from agentic_data_product.app.routes.health import router as health_router
 from agentic_data_product.config import get_settings
 from agentic_data_product.observability import configure_logging
@@ -70,6 +71,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     application.include_router(health_router)
+    application.include_router(dev_persistence_router)
     return application
 
 

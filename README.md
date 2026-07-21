@@ -4,7 +4,7 @@
 
 | | |
 | --- | --- |
-| **Status** | Milestone **M0** foundation (scaffolding) |
+| **Status** | Milestone **M1** domain foundation (in progress) |
 | **MVP target** | September 2026 |
 | **Primary MVP user** | Data Consultant |
 | **Stack** | Python 3.12 · uv · FastAPI · LangGraph (dep only) · PostgreSQL |
@@ -17,7 +17,7 @@ The accelerator helps teams design analytics-ready data products faster. AI agen
 
 **M0 scope:** production-quality project skeleton only — no agents, graphs, artefacts, or adapters yet.
 
-Full product intent: [`PRODUCT_SPEC.md`](PRODUCT_SPEC.md).
+Full product intent: [`docs/PRODUCT_SPEC.md`](docs/PRODUCT_SPEC.md).
 
 ---
 
@@ -43,7 +43,7 @@ flowchart TB
   Store --> FUT[FutureAdapters]
 ```
 
-Layers: **AI execution** (UI, API, LangGraph) → **canonical model** → **platform adapters**. Details: [`ARCHITECTURE.md`](ARCHITECTURE.md).
+Layers: **AI execution** (UI, API, LangGraph) → **canonical model** → **platform adapters**. Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 **M0 implements:** FastAPI + config + logging + PostgreSQL connectivity + `/health` + `/ready`.
 
@@ -71,7 +71,7 @@ Layers: **AI execution** (UI, API, LangGraph) → **canonical model** → **plat
 6. **Metric Definitions**  
 7. **Review Package**  
 
-See [`PRODUCT_SPEC.md`](PRODUCT_SPEC.md) §5. Models are introduced in **M1**.
+See [`docs/PRODUCT_SPEC.md`](docs/PRODUCT_SPEC.md) §5.
 
 ---
 
@@ -83,7 +83,7 @@ See [`PRODUCT_SPEC.md`](PRODUCT_SPEC.md) §5. Models are introduced in **M1**.
 | **Reject** | Terminate the workflow |
 | **Request revisions** | Regenerate the current artefact; review again |
 
-Implemented from **M2** onward. See [`adr/005-human-in-the-loop-workflow.md`](adr/005-human-in-the-loop-workflow.md).
+Implemented from **M2** onward. See [`docs/adr/005-human-in-the-loop-workflow.md`](docs/adr/005-human-in-the-loop-workflow.md).
 
 ---
 
@@ -104,8 +104,8 @@ Implemented from **M2** onward. See [`adr/005-human-in-the-loop-workflow.md`](ad
 | Area | Status |
 | --- | --- |
 | Documentation baseline | Complete |
-| **M0 scaffolding** | In progress on `feature/m0-project-foundation` |
-| M1+ application features | Not started |
+| **M0 scaffolding** | Complete |
+| **M1 domain foundation** | In progress on `feature/m1-domain-foundation` |
 
 Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md).
 
@@ -115,8 +115,11 @@ Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md).
 
 ```text
 .
-├── adr/
 ├── docs/
+│   ├── adr/
+│   ├── PRODUCT_SPEC.md
+│   ├── ARCHITECTURE.md
+│   └── IMPLEMENTATION_PLAN.md
 ├── src/agentic_data_product/
 │   ├── app/                 # FastAPI (main, health/ready)
 │   ├── config/              # pydantic-settings
@@ -145,6 +148,30 @@ Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md).
 - [uv](https://docs.astral.sh/uv/)
 - Docker + Docker Compose (for PostgreSQL)
 
+## Developer commands
+
+Use these commands during day-to-day development:
+
+```bash
+make help      # list commands
+make db        # start PostgreSQL
+make migrate   # apply migrations
+make dev       # run FastAPI locally
+make lint      # ruff + format check + mypy
+make test      # unit + integration (integration only when PostgreSQL is running)
+make verify    # full validation pipeline with PASS/FAIL summary
+make clean     # remove cache/temp files
+make db-stop   # stop PostgreSQL
+```
+
+When to use:
+
+- `make dev`: while implementing API or persistence changes.
+- `make lint`: quick local quality gate before commit.
+- `make test`: run automated tests for behavior validation.
+- `make verify`: pre-PR full pipeline check.
+- `make clean`: reset local caches when tool output looks stale.
+
 ### 1. Install dependencies
 
 ```bash
@@ -158,15 +185,21 @@ uv sync --group dev
 docker compose up -d postgres
 ```
 
-### 3. Run the API
+### 3. Apply database migrations
+
+```bash
+uv run adp-migrate
+```
+
+### 4. Run the API
 
 ```bash
 uv run uvicorn agentic_data_product.app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Or: `make run`
+Or: `make dev`
 
-### 4. Health endpoints
+### 5. Health endpoints
 
 ```bash
 curl -s http://127.0.0.1:8000/health | python3 -m json.tool
@@ -176,7 +209,27 @@ curl -s http://127.0.0.1:8000/ready | python3 -m json.tool
 - `GET /health` — process liveness (always 200 if the app is up)  
 - `GET /ready` — PostgreSQL readiness (`200` ready / `503` unavailable)
 
-### 5. Tests and quality
+### 6. M1 development persistence endpoints
+
+Examples:
+
+```bash
+# Create run
+curl -s -X POST http://127.0.0.1:8000/dev/runs \
+  -H "content-type: application/json" \
+  -d '{"name":"demo-run","metadata":{"source":"manual"}}' | python3 -m json.tool
+
+# Create artefact (business requirement)
+curl -s -X POST http://127.0.0.1:8000/dev/artefacts \
+  -H "content-type: application/json" \
+  -d '{"run_id":"<RUN_ID>","artefact_type":"business_requirement","payload":{"intent":"Validate M1","objectives":["Store data"],"constraints":[],"success_criteria":["Retrievable"]}}' | python3 -m json.tool
+
+# List artefacts and audit
+curl -s "http://127.0.0.1:8000/dev/artefacts?run_id=<RUN_ID>" | python3 -m json.tool
+curl -s "http://127.0.0.1:8000/dev/audit?run_id=<RUN_ID>" | python3 -m json.tool
+```
+
+### 7. Tests and quality
 
 ```bash
 uv run ruff check .
@@ -188,7 +241,7 @@ uv run pytest tests/integration -q -m integration   # requires Postgres
 
 Or: `make lint typecheck test-unit`
 
-### 6. Full stack via Docker Compose
+### 8. Full stack via Docker Compose
 
 ```bash
 docker compose up --build
@@ -196,7 +249,7 @@ docker compose up --build
 
 API: http://localhost:8000/health
 
-### 7. Pre-commit (optional local hooks)
+### 9. Pre-commit (optional local hooks)
 
 ```bash
 uv run pre-commit install
@@ -210,17 +263,17 @@ uv run pre-commit run --all-files
 | Milestone | Focus |
 | --- | --- |
 | **M0** | Scaffold: uv, FastAPI, Postgres connectivity |
-| **M1** | Artefact schemas, ArtefactStore, audit/lineage |
+| **M1** | Artefact schemas, ArtefactStore, workflow metadata, migrations |
 | **M2** | LangGraph + HITL skeleton |
 | **M3–M7** | Agents, UI, adapter, demo |
 
-See [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md).
+See [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md).
 
 ---
 
 ## Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md). Architecture decisions: [`adr/`](adr/).
+See [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md). Architecture decisions: [`docs/adr/`](docs/adr/).
 
 ---
 
@@ -228,11 +281,11 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md). Architecture decisions: [`adr/`](adr/)
 
 | Document | Purpose |
 | --- | --- |
-| [`PRODUCT_SPEC.md`](PRODUCT_SPEC.md) | What we build |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | How we build it |
-| [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) | Milestones |
+| [`docs/PRODUCT_SPEC.md`](docs/PRODUCT_SPEC.md) | What we build |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How we build it |
+| [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) | Milestones |
 | [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md) | M0 assumptions |
-| [`adr/`](adr/) | Decision records |
+| [`docs/adr/`](docs/adr/) | Decision records |
 
 ---
 

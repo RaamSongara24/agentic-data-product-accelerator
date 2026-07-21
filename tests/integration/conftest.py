@@ -12,6 +12,7 @@ from httpx import ASGITransport, AsyncClient
 from agentic_data_product.app.main import create_app
 from agentic_data_product.config.settings import get_settings
 from agentic_data_product.persistence.db import Database, set_database
+from agentic_data_product.persistence.migrations import apply_migrations
 
 
 def _database_url() -> str:
@@ -40,10 +41,20 @@ def postgres_available() -> str:
     return url
 
 
-@pytest.fixture
-async def integration_app(postgres_available: str) -> AsyncIterator[FastAPI]:
-    get_settings.cache_clear()
+@pytest.fixture(scope="module")
+def migrated_database(postgres_available: str) -> str:
+    """Apply latest schema migration for integration tests."""
+    import asyncio
+
     os.environ["DATABASE_URL"] = postgres_available
+    asyncio.run(apply_migrations(postgres_available))
+    return postgres_available
+
+
+@pytest.fixture
+async def integration_app(migrated_database: str) -> AsyncIterator[FastAPI]:
+    get_settings.cache_clear()
+    os.environ["DATABASE_URL"] = migrated_database
     get_settings.cache_clear()
     application = create_app()
     # Use real lifespan
