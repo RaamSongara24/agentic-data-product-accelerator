@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: adp-postgres
+    environment:
+      POSTGRES_USER: adp
+      POSTGRES_PASSWORD: adp
+      POSTGRES_DB: adp
+    ports:
+      - "5432:5432"
+    volumes:
+      - adp_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adp -d adp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: adp-api
+    environment:
+      APP_ENV: development
+      LOG_LEVEL: INFO
+      LOG_JSON: "true"
+      DATABASE_URL: postgresql+asyncpg://adp:adp@postgres:5432/adp
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  adp_pgdata:
