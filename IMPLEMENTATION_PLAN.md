@@ -50,21 +50,25 @@ flowchart LR
 
 ### M0 — Scaffolding
 
+**Status:** Complete — evidence in [`docs/milestones/M0/`](docs/milestones/M0/)
+
 **Deliverables**
 
-- `uv` project (`pyproject.toml`), lint/test tooling  
-- FastAPI app skeleton with `/health`  
-- Docker Compose (or equivalent) for PostgreSQL  
+- `uv` project (`pyproject.toml` + `uv.lock`), lint/test tooling  
+- FastAPI app skeleton with `/health` and `/ready`  
+- Docker Compose for PostgreSQL (+ optional API service)  
 - Empty package layout per `ARCHITECTURE.md`  
+- Config, logging, lifespan, DB ping scaffold, CI, pre-commit  
 
 **Validation**
 
-- `uv sync` and tests run in CI  
-- API healthcheck passes against local Postgres  
+- `uv sync` and unit tests run locally / in CI  
+- API `/health` returns 200; `/ready` returns 200 when Postgres is up  
+- Integration job in GitHub Actions runs against service Postgres  
 
 **Exit criteria**
 
-- Developers can start API + Postgres with documented commands  
+- Developers can start API + Postgres with documented commands (see README)  
 
 ---
 
