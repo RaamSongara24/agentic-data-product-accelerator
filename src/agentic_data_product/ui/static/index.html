@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agentic Data Product — Consultant Review</title>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">ADP</span>
+      <div>
+        <h1>Agentic Data Product</h1>
+        <p class="subtitle">Consultant review workspace</p>
+      </div>
+    </div>
+    <div id="config-chip" class="config-chip" title="Runtime config profile">Loading profile…</div>
+  </header>
+
+  <main class="layout">
+    <section class="panel" id="submit-panel">
+      <h2>1. Submit Business Requirement</h2>
+      <p class="hint">Starts a design run through the fixed seven-artefact graph.</p>
+      <form id="br-form">
+        <label>Title
+          <input name="title" required value="Sales analytics data product" />
+        </label>
+        <label>Intent
+          <textarea name="intent" rows="3" required>Deliver a governed sales analytics data product covering orders, customers, and products for consultant-led design.</textarea>
+        </label>
+        <label>Objectives (one per line)
+          <textarea name="objectives" rows="3" required>Analyse order amounts and order counts by customer and region
+Support product-level sales reporting</textarea>
+        </label>
+        <label>Constraints (one per line)
+          <textarea name="constraints" rows="2">Must not use HR or security datasets the consultant cannot access
+Outputs must remain technology-agnostic canonical artefacts</textarea>
+        </label>
+        <label>Success criteria (one per line)
+          <textarea name="success_criteria" rows="3" required>Technical Requirement approved via HITL
+Mapping data-model slice approved via HITL
+All seven canonical artefacts approved via Review Package</textarea>
+        </label>
+        <label>Stakeholders (comma-separated)
+          <input name="stakeholders" value="data_consultant" />
+        </label>
+        <label>Consultant / user id
+          <input name="created_by" value="consultant" required />
+        </label>
+        <div class="actions">
+          <button type="submit" id="start-btn">Start run</button>
+        </div>
+      </form>
+      <p id="submit-error" class="error" hidden></p>
+    </section>
+
+    <section class="panel" id="run-panel" hidden>
+      <div class="run-header">
+        <h2>2. Run progress</h2>
+        <button type="button" id="refresh-btn" class="secondary">Refresh</button>
+      </div>
+      <div class="status-row">
+        <span id="run-status" class="status-badge">—</span>
+        <code id="run-id"></code>
+      </div>
+      <ol id="stage-list" class="stage-list"></ol>
+
+      <h3>3. Artefact under review</h3>
+      <div id="pending-meta" class="pending-meta">No pending review.</div>
+      <div class="viewer-toolbar">
+        <label>Artefact
+          <select id="artefact-select"></select>
+        </label>
+        <button type="button" id="load-artefact-btn" class="secondary">Load</button>
+      </div>
+      <pre id="artefact-viewer" class="viewer">Select an artefact to view its payload.</pre>
+
+      <h3>4. Decision</h3>
+      <p class="hint">HITL controls: Approve, Reject (terminate), or Request revisions.</p>
+      <label>Comments
+        <textarea id="review-comments" rows="2" placeholder="Optional reviewer comments"></textarea>
+      </label>
+      <div class="actions decision-actions">
+        <button type="button" id="approve-btn" class="approve">Approve</button>
+        <button type="button" id="reject-btn" class="reject">Reject</button>
+        <button type="button" id="revisions-btn" class="revisions">Request revisions</button>
+      </div>
+      <p id="decision-error" class="error" hidden></p>
+
+      <h3>5. Operator events</h3>
+      <p class="hint">Audit trail for this run (P2/P3 baseline).</p>
+      <div id="events-list" class="events"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>Lightweight MVP review UI — consumes production <code>/runs</code> APIs</span>
+  </footer>
+  <script src="app.js"></script>
+</body>
+</html>

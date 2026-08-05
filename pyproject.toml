@@ -1,7 +1,7 @@
 [project]
 name = "agentic-data-product"
 version = "0.1.0"
-description = "Agentic Data Product Design Platform — Milestone M3 requirements and mapping"
+description = "Agentic Data Product Design Platform — Milestone M5 lightweight UI and observability"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Proprietary" }
@@ -31,6 +31,7 @@ packages = ["src/agentic_data_product"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "src/agentic_data_product/persistence/migrations/versions" = "agentic_data_product/persistence/migrations/versions"
+"src/agentic_data_product/ui/static" = "agentic_data_product/ui/static"
 
 [dependency-groups]
 dev = [

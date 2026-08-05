@@ -5,12 +5,16 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from agentic_data_product import __version__
+from agentic_data_product.app.routes.config import router as config_router
 from agentic_data_product.app.routes.dev import router as dev_router
 from agentic_data_product.app.routes.health import router as health_router
 from agentic_data_product.app.routes.runs import router as runs_router
@@ -108,6 +112,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("Application shutdown complete")
 
 
+def _ui_static_dir() -> Path:
+    return Path(__file__).resolve().parents[1] / "ui" / "static"
+
+
 def create_app() -> FastAPI:
     """Build and configure the FastAPI application."""
     settings = get_settings()
@@ -117,8 +125,18 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     application.include_router(health_router)
+    application.include_router(config_router)
     application.include_router(runs_router)
     application.include_router(dev_router)
+
+    ui_dir = _ui_static_dir()
+    if ui_dir.is_dir():
+        application.mount("/ui", StaticFiles(directory=str(ui_dir), html=True), name="ui")
+
+        @application.get("/", include_in_schema=False)
+        async def root_redirect() -> RedirectResponse:
+            return RedirectResponse(url="/ui/")
+
     return application
 
 

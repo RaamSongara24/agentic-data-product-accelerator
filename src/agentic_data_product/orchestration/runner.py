@@ -11,7 +11,8 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from agentic_data_product.domain.artefacts import ArtefactRef
+from agentic_data_product.domain.artefacts import ArtefactRef, CanonicalArtefact
+from agentic_data_product.domain.audit import AuditEvent
 from agentic_data_product.domain.enums import ArtefactType, ReviewDecisionKind, RunStatus
 from agentic_data_product.domain.review import PendingReview, ReviewDecisionRequest
 from agentic_data_product.domain.run import (
@@ -229,6 +230,31 @@ class HitlRunner:
                 pending = PendingReview(artefact=latest, feedback=None)
 
         return RunDetail(run=run, pending_review=pending, latest_artefact=latest)
+
+    async def list_artefacts(self, run_id: UUID) -> list[ArtefactRef]:
+        async with self._session_factory() as session:
+            store = PostgresArtefactStore(session)
+            return await store.list_artefacts_for_run(run_id)
+
+    async def get_artefact(
+        self,
+        artefact_id: UUID,
+        *,
+        version: int | None = None,
+        run_id: UUID | None = None,
+    ) -> CanonicalArtefact:
+        async with self._session_factory() as session:
+            store = PostgresArtefactStore(session)
+            artefact = await store.get_artefact(artefact_id, version=version)
+            if run_id is not None and artefact.run_id != run_id:
+                raise NotFoundError(f"Artefact {artefact_id} not found for run {run_id}")
+            return artefact
+
+    async def list_events(self, run_id: UUID) -> list[AuditEvent]:
+        async with self._session_factory() as session:
+            store = PostgresArtefactStore(session)
+            await store.get_run(run_id)
+            return await store.list_audit_for_run(run_id)
 
 
 def map_runner_error(exc: Exception) -> tuple[int, str]:
