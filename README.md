@@ -4,10 +4,10 @@
 
 | | |
 | --- | --- |
-| **Status** | Milestone **M1** complete (domain model + persistence) |
+| **Status** | Milestone **M2** complete (HITL skeleton + durable checkpointer) |
 | **MVP target** | September 2026 |
 | **Primary MVP user** | Data Consultant |
-| **Stack** | Python 3.12 · uv · FastAPI · LangGraph (dep only) · PostgreSQL |
+| **Stack** | Python 3.12 · uv · FastAPI · LangGraph · PostgreSQL |
 
 ---
 
@@ -15,7 +15,7 @@
 
 The accelerator helps teams design analytics-ready data products faster. AI agents will produce a **canonical data product model**; humans approve each stage before the workflow continues. Platform-specific assets (for example Databricks pipelines) are generated later via **adapters**.
 
-**M0–M1 scope:** production-quality skeleton plus typed canonical artefacts, ArtefactStore, audit/lineage persistence, and `/dev` validation APIs. No agents, graphs, HITL, or adapters yet.
+**M0–M2 scope:** production-quality skeleton, typed canonical artefacts, ArtefactStore, audit/lineage, and a durable LangGraph HITL stub (Approve / Reject / Request revisions) with production `/runs` APIs. No real LLM agents, mapping subgraph, UI, or adapters yet.
 
 Full product intent: [`PRODUCT_SPEC.md`](PRODUCT_SPEC.md).
 
@@ -45,7 +45,7 @@ flowchart TB
 
 Layers: **AI execution** (UI, API, LangGraph) → **canonical model** → **platform adapters**. Details: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
-**M0–M1 implements:** FastAPI + config + logging + PostgreSQL schema (runs, artefacts, audit, lineage) + ArtefactStore + `/health` + `/ready` + `/dev` persistence APIs.
+**M0–M2 implements:** FastAPI + config + logging + PostgreSQL (runs, artefacts, audit, lineage, LangGraph checkpoints) + ArtefactStore + HITL stub graph + `/health` + `/ready` + `/runs` + `/dev` persistence APIs.
 
 ---
 
@@ -83,7 +83,7 @@ See [`PRODUCT_SPEC.md`](PRODUCT_SPEC.md) §5. Models and persistence are deliver
 | **Reject** | Terminate the workflow |
 | **Request revisions** | Regenerate the current artefact; review again |
 
-Implemented from **M2** onward. See [`adr/005-human-in-the-loop-workflow.md`](adr/005-human-in-the-loop-workflow.md).
+Implemented in **M2** (complete). See [`adr/005-human-in-the-loop-workflow.md`](adr/005-human-in-the-loop-workflow.md) and [`docs/milestones/M2/`](docs/milestones/M2/).
 
 ---
 
@@ -93,7 +93,7 @@ Implemented from **M2** onward. See [`adr/005-human-in-the-loop-workflow.md`](ad
 | --- | --- |
 | Language / packaging | Python 3.12, **uv** |
 | API | **FastAPI** + Uvicorn |
-| Orchestration | **LangGraph** (dependency reserved; workflows from M2) |
+| Orchestration | **LangGraph** + PostgreSQL checkpointer (M2 HITL stub) |
 | Persistence | **PostgreSQL** 16 + SQLAlchemy async + asyncpg |
 | Quality | Ruff, Mypy, Pytest, Pre-commit, GitHub Actions |
 
@@ -106,9 +106,10 @@ Implemented from **M2** onward. See [`adr/005-human-in-the-loop-workflow.md`](ad
 | Documentation baseline | Complete |
 | **M0 scaffolding** | **Complete** — evidence in [`docs/milestones/M0/`](docs/milestones/M0/) |
 | **M1 domain + persistence** | **Complete** — evidence in [`docs/milestones/M1/`](docs/milestones/M1/) |
-| M2+ application features | Not started |
+| **M2 HITL skeleton** | **Complete** — evidence in [`docs/milestones/M2/`](docs/milestones/M2/) |
+| M3+ application features | Not started |
 
-Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close-out: [`docs/milestones/M0/`](docs/milestones/M0/), [`docs/milestones/M1/`](docs/milestones/M1/).
+Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close-out: [`docs/milestones/M0/`](docs/milestones/M0/), [`docs/milestones/M1/`](docs/milestones/M1/), [`docs/milestones/M2/`](docs/milestones/M2/).
 
 ---
 
@@ -118,14 +119,14 @@ Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close
 .
 ├── adr/
 ├── docs/
-│   └── milestones/M0/, M1/
+│   └── milestones/M0/, M1/, M2/
 ├── src/agentic_data_product/
-│   ├── app/                 # FastAPI (health/ready + /dev persistence)
+│   ├── app/                 # FastAPI (health/ready + /runs HITL + /dev)
 │   ├── config/              # pydantic-settings
 │   ├── observability/       # logging setup
 │   ├── persistence/         # DB, migrations, ArtefactStore
-│   ├── orchestration/       # reserved (M2+)
-│   ├── domain/              # canonical artefact + run/audit/lineage models
+│   ├── orchestration/       # LangGraph HITL stub + checkpointer (M2)
+│   ├── domain/              # canonical artefact + run/audit/lineage/review models
 │   ├── integrations/        # reserved
 │   ├── adapters/            # reserved (M6)
 │   └── ui/                  # reserved (M5)
@@ -181,17 +182,39 @@ curl -s http://127.0.0.1:8000/ready | python3 -m json.tool
 - `GET /health` — process liveness (always 200 if the app is up)  
 - `GET /ready` — PostgreSQL readiness (`200` ready / `503` unavailable)
 
-### 5. Dev persistence APIs (M1)
+### 5. Production run / HITL APIs (M2)
 
 ```bash
-# Create a run, save an artefact version, inspect audit/lineage
+# Create a run — graph generates a stub Business Requirement and pauses for review
+curl -s -X POST http://127.0.0.1:8000/runs -H 'content-type: application/json' \
+  -d '{"title":"demo","created_by":"consultant"}' | python3 -m json.tool
+
+# Inspect run (status, pending_review, latest_artefact)
+curl -s http://127.0.0.1:8000/runs/<run_id> | python3 -m json.tool
+
+# Submit a review decision: approve | reject | request_revisions
+curl -s -X POST http://127.0.0.1:8000/runs/<run_id>/reviews \
+  -H 'content-type: application/json' \
+  -d '{"decision":"approve","comments":"ok","reviewer_id":"consultant"}' | python3 -m json.tool
+```
+
+| Decision | Effect |
+| --- | --- |
+| `approve` | Run status → `approved` |
+| `reject` | Run status → `terminated` |
+| `request_revisions` | New artefact version + return to `waiting_for_review` |
+
+### 6. Dev persistence APIs (M1)
+
+```bash
+# Create a run row only (no graph) — useful for store/audit validation
 curl -s -X POST http://127.0.0.1:8000/dev/runs -H 'content-type: application/json' \
   -d '{"title":"demo"}' | python3 -m json.tool
 ```
 
 Routes: `POST/GET /dev/runs`, `POST/GET /dev/artefacts`, `POST/GET /dev/lineage`, `GET /dev/audit`.
 
-### 6. Tests and quality
+### 7. Tests and quality
 
 ```bash
 make verify   # lint, format check, mypy, unit + integration (requires Postgres + migrate)
@@ -207,7 +230,7 @@ uv run pytest tests/unit -q
 uv run pytest tests/integration -q -m integration
 ```
 
-### 7. Full stack via Docker Compose
+### 8. Full stack via Docker Compose
 
 ```bash
 docker compose up --build
@@ -215,7 +238,7 @@ docker compose up --build
 
 API: http://localhost:8000/health
 
-### 8. Pre-commit (optional local hooks)
+### 9. Pre-commit (optional local hooks)
 
 ```bash
 uv run pre-commit install
@@ -230,7 +253,7 @@ uv run pre-commit run --all-files
 | --- | --- |
 | **M0** | Scaffold: uv, FastAPI, Postgres connectivity — **complete** |
 | **M1** | Artefact schemas, ArtefactStore, audit/lineage — **complete** |
-| **M2** | LangGraph + HITL skeleton |
+| **M2** | LangGraph + HITL skeleton — **complete** |
 | **M3–M7** | Agents, UI, adapter, demo |
 
 See [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md).
@@ -253,6 +276,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md). Architecture decisions: [`adr/`](adr/)
 | [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md) | M0 assumptions |
 | [`docs/milestones/M0/`](docs/milestones/M0/) | M0 close-out evidence |
 | [`docs/milestones/M1/`](docs/milestones/M1/) | M1 close-out evidence |
+| [`docs/milestones/M2/`](docs/milestones/M2/) | M2 close-out evidence |
 | [`adr/`](adr/) | Decision records |
 
 ---

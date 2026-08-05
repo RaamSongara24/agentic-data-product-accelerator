@@ -32,6 +32,13 @@ class Database:
             raise RuntimeError(msg)
         return self._engine
 
+    @property
+    def session_factory(self) -> async_sessionmaker[AsyncSession]:
+        if self._session_factory is None:
+            msg = "Database session factory is not started"
+            raise RuntimeError(msg)
+        return self._session_factory
+
     async def connect(self) -> None:
         """Create the async engine and verify connectivity.
 

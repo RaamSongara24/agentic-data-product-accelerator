@@ -37,7 +37,7 @@ flowchart LR
 | --- | --- | --- |
 | **M0** | Repo, uv, FastAPI hello, Postgres connectivity | CI install + healthcheck — **complete** |
 | **M1** | Artefact schemas + ArtefactStore + audit/lineage tables | Round-trip save/load versions — **complete** |
-| **M2** | Minimal LangGraph + Postgres checkpointer + HITL API | Approve / Reject / Request revisions on one dummy artefact |
+| **M2** | Minimal LangGraph + Postgres checkpointer + HITL API | Approve / Reject / Request revisions on one dummy artefact — **complete** |
 | **M3** | Business → Technical Requirement + Mapping subgraph + reviews | End-to-end through mapping HITL with fixtures |
 | **M4** | Semantic/Data Model, Pipeline Spec, Metric Definitions, Review Package | Full canonical path with per-stage reviews |
 | **M5** | Lightweight UI + run progress + operator events | Consultant can complete a run in the UI |
@@ -97,6 +97,8 @@ flowchart LR
 ---
 
 ### M2 — HITL skeleton
+
+**Status:** Complete — evidence in [`docs/milestones/M2/`](docs/milestones/M2/)
 
 **Deliverables**
 

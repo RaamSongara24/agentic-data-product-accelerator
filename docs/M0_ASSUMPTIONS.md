@@ -17,7 +17,7 @@
 | --- | --- |
 | Canonical artefact models + ArtefactStore | M1 |
 | Alembic migrations / artefact tables | M1 |
-| LangGraph workflows and HITL | M2+ |
+| LangGraph workflows and HITL | **M2 complete** — stub graph + durable checkpointer; real agents from M3 |
 | Agents / LLM integration | M3+ |
 | Review UI | M5 |
 | Databricks adapter | M6 |

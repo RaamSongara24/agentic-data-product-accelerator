@@ -8,11 +8,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from agentic_data_product.domain.artefacts import ArtefactRef, BusinessRequirementPayload
 from agentic_data_product.domain.enums import RunStatus
+from agentic_data_product.domain.review import PendingReview
 
 
 class WorkflowRun(BaseModel):
-    """One design workflow execution (``run_id`` aligns with future LangGraph thread_id)."""
+    """One design workflow execution (``run_id`` = LangGraph ``thread_id``)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -34,3 +36,24 @@ class CreateWorkflowRunRequest(BaseModel):
     created_by: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     run_id: UUID | None = None
+
+
+class CreateRunApiRequest(BaseModel):
+    """Production ``POST /runs`` body — starts the M2 HITL stub graph."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str | None = None
+    created_by: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    business_requirement: BusinessRequirementPayload | None = None
+
+
+class RunDetail(BaseModel):
+    """Run plus optional pending-review / latest-artefact summary for APIs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    run: WorkflowRun
+    pending_review: PendingReview | None = None
+    latest_artefact: ArtefactRef | None = None

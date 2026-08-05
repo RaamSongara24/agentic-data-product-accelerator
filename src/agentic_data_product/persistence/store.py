@@ -73,6 +73,30 @@ class ArtefactStore(ABC):
         """Return a run by id."""
 
     @abstractmethod
+    async def update_run_status(
+        self,
+        run_id: UUID,
+        status: RunStatus | str,
+        *,
+        actor: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> WorkflowRun:
+        """Update run status and emit a ``run_status_updated`` audit event."""
+
+    @abstractmethod
+    async def record_review(
+        self,
+        run_id: UUID,
+        *,
+        decision: str,
+        comments: str = "",
+        reviewer_id: str | None = None,
+        artefact_id: UUID | None = None,
+        artefact_version: int | None = None,
+    ) -> AuditEvent:
+        """Append a ``review_submitted`` audit event (does not change run status)."""
+
+    @abstractmethod
     async def save_artefact(
         self,
         *,
@@ -156,6 +180,80 @@ class PostgresArtefactStore(ArtefactStore):
         if row is None:
             raise NotFoundError(f"Run not found: {run_id}")
         return self._run_from_row(row)
+
+    async def update_run_status(
+        self,
+        run_id: UUID,
+        status: RunStatus | str,
+        *,
+        actor: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> WorkflowRun:
+        row = await self._session.get(WorkflowRunRow, run_id)
+        if row is None:
+            raise NotFoundError(f"Run not found: {run_id}")
+        previous = row.status
+        now = _utcnow()
+        new_status = _as_str(RunStatus(status) if not isinstance(status, RunStatus) else status)
+        row.status = new_status
+        row.updated_at = now
+        await self._session.flush()
+        await self._append_audit(
+            run_id=run_id,
+            action=AuditAction.RUN_STATUS_UPDATED,
+            entity_type="workflow_run",
+            entity_id=str(run_id),
+            details={
+                "previous_status": previous,
+                "status": new_status,
+                **(details or {}),
+            },
+            actor=actor,
+            created_at=now,
+        )
+        await self._session.commit()
+        await self._session.refresh(row)
+        return self._run_from_row(row)
+
+    async def record_review(
+        self,
+        run_id: UUID,
+        *,
+        decision: str,
+        comments: str = "",
+        reviewer_id: str | None = None,
+        artefact_id: UUID | None = None,
+        artefact_version: int | None = None,
+    ) -> AuditEvent:
+        await self.get_run(run_id)
+        now = _utcnow()
+        event_id = uuid4()
+        details: dict[str, Any] = {
+            "decision": decision,
+            "comments": comments,
+        }
+        if artefact_id is not None:
+            details["artefact_id"] = str(artefact_id)
+        if artefact_version is not None:
+            details["artefact_version"] = artefact_version
+        self._session.add(
+            AuditEventRow(
+                event_id=event_id,
+                run_id=run_id,
+                action=_as_str(AuditAction.REVIEW_SUBMITTED),
+                entity_type="review",
+                entity_id=str(run_id),
+                details=details,
+                actor=reviewer_id,
+                created_at=now,
+            )
+        )
+        await self._session.commit()
+        events = await self.list_audit_for_run(run_id)
+        for event in reversed(events):
+            if event.event_id == event_id:
+                return event
+        raise ArtefactStoreError(f"Failed to load review audit event {event_id}")
 
     async def save_artefact(
         self,
