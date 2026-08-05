@@ -78,6 +78,9 @@ jobs:
       - name: Sync dependencies
         run: uv sync --group dev
 
+      - name: Apply migrations
+        run: uv run python -m agentic_data_product.persistence.migrate
+
       - name: Integration tests
         run: uv run pytest tests/integration -q -m integration
 

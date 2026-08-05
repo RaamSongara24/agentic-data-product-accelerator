@@ -4,7 +4,7 @@
 
 | | |
 | --- | --- |
-| **Status** | Milestone **M0** complete (scaffolding) |
+| **Status** | Milestone **M1** complete (domain model + persistence) |
 | **MVP target** | September 2026 |
 | **Primary MVP user** | Data Consultant |
 | **Stack** | Python 3.12 · uv · FastAPI · LangGraph (dep only) · PostgreSQL |
@@ -15,7 +15,7 @@
 
 The accelerator helps teams design analytics-ready data products faster. AI agents will produce a **canonical data product model**; humans approve each stage before the workflow continues. Platform-specific assets (for example Databricks pipelines) are generated later via **adapters**.
 
-**M0 scope:** production-quality project skeleton only — no agents, graphs, artefacts, or adapters yet.
+**M0–M1 scope:** production-quality skeleton plus typed canonical artefacts, ArtefactStore, audit/lineage persistence, and `/dev` validation APIs. No agents, graphs, HITL, or adapters yet.
 
 Full product intent: [`PRODUCT_SPEC.md`](PRODUCT_SPEC.md).
 
@@ -45,7 +45,7 @@ flowchart TB
 
 Layers: **AI execution** (UI, API, LangGraph) → **canonical model** → **platform adapters**. Details: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
-**M0 implements:** FastAPI + config + logging + PostgreSQL connectivity + `/health` + `/ready`.
+**M0–M1 implements:** FastAPI + config + logging + PostgreSQL schema (runs, artefacts, audit, lineage) + ArtefactStore + `/health` + `/ready` + `/dev` persistence APIs.
 
 ---
 
@@ -71,7 +71,7 @@ Layers: **AI execution** (UI, API, LangGraph) → **canonical model** → **plat
 6. **Metric Definitions**  
 7. **Review Package**  
 
-See [`PRODUCT_SPEC.md`](PRODUCT_SPEC.md) §5. Models are introduced in **M1**.
+See [`PRODUCT_SPEC.md`](PRODUCT_SPEC.md) §5. Models and persistence are delivered in **M1** (complete).
 
 ---
 
@@ -105,9 +105,10 @@ Implemented from **M2** onward. See [`adr/005-human-in-the-loop-workflow.md`](ad
 | --- | --- |
 | Documentation baseline | Complete |
 | **M0 scaffolding** | **Complete** — evidence in [`docs/milestones/M0/`](docs/milestones/M0/) |
-| M1+ application features | Not started |
+| **M1 domain + persistence** | **Complete** — evidence in [`docs/milestones/M1/`](docs/milestones/M1/) |
+| M2+ application features | Not started |
 
-Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close-out: [`docs/milestones/M0/`](docs/milestones/M0/).
+Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close-out: [`docs/milestones/M0/`](docs/milestones/M0/), [`docs/milestones/M1/`](docs/milestones/M1/).
 
 ---
 
@@ -117,13 +118,14 @@ Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close
 .
 ├── adr/
 ├── docs/
+│   └── milestones/M0/, M1/
 ├── src/agentic_data_product/
-│   ├── app/                 # FastAPI (main, health/ready)
+│   ├── app/                 # FastAPI (health/ready + /dev persistence)
 │   ├── config/              # pydantic-settings
 │   ├── observability/       # logging setup
-│   ├── persistence/         # DB engine + ping (M0)
+│   ├── persistence/         # DB, migrations, ArtefactStore
 │   ├── orchestration/       # reserved (M2+)
-│   ├── domain/              # reserved (M1)
+│   ├── domain/              # canonical artefact + run/audit/lineage models
 │   ├── integrations/        # reserved
 │   ├── adapters/            # reserved (M6)
 │   └── ui/                  # reserved (M5)
@@ -152,11 +154,14 @@ cp .env.example .env
 uv sync --group dev
 ```
 
-### 2. Start PostgreSQL
+### 2. Start PostgreSQL and migrate
 
 ```bash
-docker compose up -d postgres
+make db
+make migrate
 ```
+
+Equivalent: `docker compose up -d postgres` then `uv run python -m agentic_data_product.persistence.migrate`.
 
 ### 3. Run the API
 
@@ -164,7 +169,7 @@ docker compose up -d postgres
 uv run uvicorn agentic_data_product.app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Or: `make run`
+Or: `make run` / `make dev`
 
 ### 4. Health endpoints
 
@@ -176,19 +181,33 @@ curl -s http://127.0.0.1:8000/ready | python3 -m json.tool
 - `GET /health` — process liveness (always 200 if the app is up)  
 - `GET /ready` — PostgreSQL readiness (`200` ready / `503` unavailable)
 
-### 5. Tests and quality
+### 5. Dev persistence APIs (M1)
+
+```bash
+# Create a run, save an artefact version, inspect audit/lineage
+curl -s -X POST http://127.0.0.1:8000/dev/runs -H 'content-type: application/json' \
+  -d '{"title":"demo"}' | python3 -m json.tool
+```
+
+Routes: `POST/GET /dev/runs`, `POST/GET /dev/artefacts`, `POST/GET /dev/lineage`, `GET /dev/audit`.
+
+### 6. Tests and quality
+
+```bash
+make verify   # lint, format check, mypy, unit + integration (requires Postgres + migrate)
+```
+
+Or individually:
 
 ```bash
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy src
 uv run pytest tests/unit -q
-uv run pytest tests/integration -q -m integration   # requires Postgres
+uv run pytest tests/integration -q -m integration
 ```
 
-Or: `make lint typecheck test-unit`
-
-### 6. Full stack via Docker Compose
+### 7. Full stack via Docker Compose
 
 ```bash
 docker compose up --build
@@ -196,7 +215,7 @@ docker compose up --build
 
 API: http://localhost:8000/health
 
-### 7. Pre-commit (optional local hooks)
+### 8. Pre-commit (optional local hooks)
 
 ```bash
 uv run pre-commit install
@@ -209,8 +228,8 @@ uv run pre-commit run --all-files
 
 | Milestone | Focus |
 | --- | --- |
-| **M0** | Scaffold: uv, FastAPI, Postgres connectivity |
-| **M1** | Artefact schemas, ArtefactStore, audit/lineage |
+| **M0** | Scaffold: uv, FastAPI, Postgres connectivity — **complete** |
+| **M1** | Artefact schemas, ArtefactStore, audit/lineage — **complete** |
 | **M2** | LangGraph + HITL skeleton |
 | **M3–M7** | Agents, UI, adapter, demo |
 
@@ -233,6 +252,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md). Architecture decisions: [`adr/`](adr/)
 | [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) | Milestones |
 | [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md) | M0 assumptions |
 | [`docs/milestones/M0/`](docs/milestones/M0/) | M0 close-out evidence |
+| [`docs/milestones/M1/`](docs/milestones/M1/) | M1 close-out evidence |
 | [`adr/`](adr/) | Decision records |
 
 ---

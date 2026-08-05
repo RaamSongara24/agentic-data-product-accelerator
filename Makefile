@@ -1,4 +1,5 @@
-.PHONY: sync lint format typecheck test test-unit test-integration up down run health
+.PHONY: sync lint format typecheck test test-unit test-integration \
+	up down run health db migrate verify dev
 
 sync:
 	uv sync --group dev
@@ -21,6 +22,17 @@ test-integration:
 	uv run pytest tests/integration -q -m integration
 
 test: test-unit
+
+db:
+	docker compose up -d postgres
+
+migrate:
+	uv run python -m agentic_data_product.persistence.migrate
+
+verify: lint typecheck test-unit
+	$(MAKE) test-integration
+
+dev: run
 
 up:
 	docker compose up -d --build

@@ -35,8 +35,8 @@ flowchart LR
 
 | Milestone | Outcome | Primary validation |
 | --- | --- | --- |
-| **M0** | Repo, uv, FastAPI hello, Postgres connectivity | CI install + healthcheck |
-| **M1** | Artefact schemas + ArtefactStore + audit/lineage tables | Round-trip save/load versions |
+| **M0** | Repo, uv, FastAPI hello, Postgres connectivity | CI install + healthcheck — **complete** |
+| **M1** | Artefact schemas + ArtefactStore + audit/lineage tables | Round-trip save/load versions — **complete** |
 | **M2** | Minimal LangGraph + Postgres checkpointer + HITL API | Approve / Reject / Request revisions on one dummy artefact |
 | **M3** | Business → Technical Requirement + Mapping subgraph + reviews | End-to-end through mapping HITL with fixtures |
 | **M4** | Semantic/Data Model, Pipeline Spec, Metric Definitions, Review Package | Full canonical path with per-stage reviews |
@@ -74,17 +74,21 @@ flowchart LR
 
 ### M1 — Domain model and persistence
 
+**Status:** Complete — evidence in [`docs/milestones/M1/`](docs/milestones/M1/)
+
 **Deliverables**
 
 - Pydantic models for all seven canonical artefacts (initial field sets)  
 - `ArtefactStore` interface + PostgreSQL implementation  
 - Tables: artefacts, runs, audit, lineage  
-- Migration approach (e.g. Alembic)  
+- Lightweight SQL migrations (`make migrate`; Alembic not required for M1)  
+- Dev persistence APIs under `/dev/...`  
 
 **Validation**
 
 - Unit tests for schema validation  
-- Integration test: create run → save artefact versions → query lineage  
+- Integration test: create run → save artefact versions → query lineage / audit  
+- `make verify` green with Postgres  
 
 **Exit criteria**
 
