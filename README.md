@@ -4,7 +4,7 @@
 
 | | |
 | --- | --- |
-| **Status** | Milestone **M0** foundation (scaffolding) |
+| **Status** | Milestone **M0** complete (scaffolding) |
 | **MVP target** | September 2026 |
 | **Primary MVP user** | Data Consultant |
 | **Stack** | Python 3.12 · uv · FastAPI · LangGraph (dep only) · PostgreSQL |
@@ -104,10 +104,10 @@ Implemented from **M2** onward. See [`adr/005-human-in-the-loop-workflow.md`](ad
 | Area | Status |
 | --- | --- |
 | Documentation baseline | Complete |
-| **M0 scaffolding** | In progress on `feature/m0-project-foundation` |
+| **M0 scaffolding** | **Complete** — evidence in [`docs/milestones/M0/`](docs/milestones/M0/) |
 | M1+ application features | Not started |
 
-Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md).
+Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close-out: [`docs/milestones/M0/`](docs/milestones/M0/).
 
 ---
 
@@ -232,6 +232,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md). Architecture decisions: [`adr/`](adr/)
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | How we build it |
 | [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) | Milestones |
 | [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md) | M0 assumptions |
+| [`docs/milestones/M0/`](docs/milestones/M0/) | M0 close-out evidence |
 | [`adr/`](adr/) | Decision records |
 
 ---

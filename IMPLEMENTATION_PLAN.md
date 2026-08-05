@@ -50,7 +50,7 @@ flowchart LR
 
 ### M0 — Scaffolding
 
-**Status:** Implemented on branch `feature/m0-project-foundation`
+**Status:** Complete — evidence in [`docs/milestones/M0/`](docs/milestones/M0/)
 
 **Deliverables**
 
