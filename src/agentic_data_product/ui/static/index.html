@@ -91,11 +91,26 @@ All seven canonical artefacts approved via Review Package</textarea>
       <h3>5. Operator events</h3>
       <p class="hint">Audit trail for this run (P2/P3 baseline).</p>
       <div id="events-list" class="events"></div>
+
+      <h3>6. Lineage</h3>
+      <p class="hint">Canonical artefact version links (G3). Product identity is these artefacts — not vendor exports.</p>
+      <div id="lineage-list" class="events"></div>
+
+      <h3>7. Optional platform export</h3>
+      <p class="hint">
+        Databricks <strong>export stub only</strong> — derives files from approved canonical artefacts.
+        Does <em>not</em> deploy to a workspace. Available after Review Package approval.
+      </p>
+      <div class="actions">
+        <button type="button" id="export-btn" class="secondary" disabled>Export stub (Databricks)</button>
+      </div>
+      <pre id="export-viewer" class="viewer">Approve the Review Package to enable optional adapter export.</pre>
+      <p id="export-error" class="error" hidden></p>
     </section>
   </main>
 
   <footer class="footer">
-    <span>Lightweight MVP review UI — consumes production <code>/runs</code> APIs</span>
+    <span>Lightweight MVP review UI — canonical design first; adapter export optional</span>
   </footer>
   <script src="app.js"></script>
 </body>

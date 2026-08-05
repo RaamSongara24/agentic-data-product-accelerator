@@ -49,7 +49,8 @@ def assemble_review_package(
     if not recs:
         recs = [
             "Approve the Review Package to mark the design path complete in-platform",
-            "Defer platform export to a future adapter milestone",
+            "Canonical artefacts are the product; optional Databricks export is an "
+            "adapter stub after approval (no live deploy)",
         ]
 
     summary = f"Consolidated review of {len(pinned)} pinned artefact version(s) for '{title}'"

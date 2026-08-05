@@ -20,8 +20,10 @@ from agentic_data_product.domain.artefacts import (
     ArtefactRef,
     BusinessRequirementPayload,
     DataModelPayload,
+    ReviewPackagePayload,
     SourceRef,
     TechnicalRequirementPayload,
+    validate_artefact_payload,
 )
 from agentic_data_product.domain.enums import ArtefactType, ReviewDecisionKind
 from agentic_data_product.domain.lineage import CreateLineageEdgeRequest
@@ -649,7 +651,57 @@ def route_after_rp_review(
     raise ValueError(msg)
 
 
-async def mark_approved(state: HitlGraphState) -> dict[str, Any]:
+async def mark_approved(state: HitlGraphState, config: RunnableConfig) -> dict[str, Any]:
+    """Persist Review Package ``decision_state=approved`` then finish the run.
+
+    In-platform publish means the Review Package (and pinned versions) are marked
+    approved — not that an adapter has deployed anywhere.
+    """
+    session_factory = _session_factory(config)
+    run_id = UUID(state["run_id"])
+    rp_id = state.get("rp_artefact_id") or state.get("artefact_id")
+    if rp_id:
+        async with session_factory() as session:
+            store = PostgresArtefactStore(session)
+            current = await store.get_artefact(UUID(str(rp_id)))
+            payload = validate_artefact_payload(ArtefactType.REVIEW_PACKAGE, current.payload)
+            assert isinstance(payload, ReviewPackagePayload)
+            approved = payload.model_copy(
+                update={
+                    "decision_state": "approved",
+                    "summary": f"{payload.summary} — approved in-platform",
+                    "recommendations": [
+                        *payload.recommendations,
+                        "Optional: export approved canonical artefacts via PlatformAdapter "
+                        "(Databricks stub) — export is not a live deploy",
+                    ],
+                }
+            )
+            artefact = await store.save_artefact(
+                run_id=run_id,
+                artefact_type=ArtefactType.REVIEW_PACKAGE,
+                payload=approved.model_dump(mode="json"),
+                artefact_id=current.artefact_id,
+                created_by=state.get("created_by"),
+                parent_versions=cast(
+                    list[ArtefactRef | dict[str, Any]],
+                    list(payload.pinned_artefacts),
+                ),
+                validate_payload=True,
+            )
+        logger.info(
+            "Run %s approved; Review Package %s v%s decision_state=approved",
+            run_id,
+            artefact.artefact_id,
+            artefact.version,
+        )
+        return {
+            "decision": ReviewDecisionKind.APPROVE,
+            "rp_artefact_version": artefact.version,
+            "artefact_version": artefact.version,
+            "rp_payload": approved.model_dump(mode="json"),
+        }
+
     logger.info("Run %s approved through Review Package (M4 exit)", state["run_id"])
     return {"decision": ReviewDecisionKind.APPROVE}
 

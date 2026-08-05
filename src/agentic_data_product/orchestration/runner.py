@@ -11,9 +11,18 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agentic_data_product.adapters import (
+    AdapterApprovalRequiredError,
+    AdapterError,
+    AdapterInputError,
+    AdapterResult,
+    AdapterTargetConfig,
+    DatabricksAdapter,
+)
 from agentic_data_product.domain.artefacts import ArtefactRef, CanonicalArtefact
 from agentic_data_product.domain.audit import AuditEvent
 from agentic_data_product.domain.enums import ArtefactType, ReviewDecisionKind, RunStatus
+from agentic_data_product.domain.lineage import LineageEdge
 from agentic_data_product.domain.review import PendingReview, ReviewDecisionRequest
 from agentic_data_product.domain.run import (
     CreateRunApiRequest,
@@ -256,6 +265,44 @@ class HitlRunner:
             await store.get_run(run_id)
             return await store.list_audit_for_run(run_id)
 
+    async def list_lineage(self, run_id: UUID) -> list[LineageEdge]:
+        async with self._session_factory() as session:
+            store = PostgresArtefactStore(session)
+            return await store.list_lineage_for_run(run_id)
+
+    async def export_run(
+        self,
+        run_id: UUID,
+        target_config: AdapterTargetConfig | None = None,
+    ) -> AdapterResult:
+        """Optional Databricks export stub from approved canonical artefacts.
+
+        Does not deploy. Requires Review Package ``decision_state=approved``.
+        """
+        async with self._session_factory() as session:
+            store = PostgresArtefactStore(session)
+            await store.get_run(run_id)
+            refs = await store.list_artefacts_for_run(run_id)
+            latest_by_id: dict[UUID, ArtefactRef] = {}
+            for ref in refs:
+                prev = latest_by_id.get(ref.artefact_id)
+                if prev is None or ref.version > prev.version:
+                    latest_by_id[ref.artefact_id] = ref
+            artefacts: list[CanonicalArtefact] = []
+            for ref in latest_by_id.values():
+                artefacts.append(await store.get_artefact(ref.artefact_id, version=ref.version))
+
+        config = target_config or AdapterTargetConfig.model_validate(
+            {
+                "platform": "databricks",
+                "workspace_label": "mvp-demo-export",
+                "catalog": "main",
+                "schema": "sales_dp",
+                "include_notebooks": True,
+            }
+        )
+        return DatabricksAdapter().to_platform(artefacts, config)
+
 
 def map_runner_error(exc: Exception) -> tuple[int, str]:
     """Map runner/store/discovery errors to (HTTP status, detail)."""
@@ -265,6 +312,12 @@ def map_runner_error(exc: Exception) -> tuple[int, str]:
         return 409, str(exc)
     if isinstance(exc, InvalidRunStateError):
         return 409, str(exc)
+    if isinstance(exc, AdapterApprovalRequiredError):
+        return 409, str(exc)
+    if isinstance(exc, AdapterInputError):
+        return 400, str(exc)
+    if isinstance(exc, AdapterError):
+        return 400, str(exc)
     if isinstance(exc, DiscoveryPermissionError):
         return 403, str(exc)
     if isinstance(exc, (HitlRunnerError, ArtefactStoreError)):
@@ -275,5 +328,7 @@ def map_runner_error(exc: Exception) -> tuple[int, str]:
             ErrorCode.DISCOVERY_USER_CONTEXT_REQUIRED,
         ):
             return 403, str(exc)
+        if exc.code == ErrorCode.ADAPTER_APPROVAL_REQUIRED:
+            return 409, str(exc)
         return 400, str(exc)
     return 500, str(exc)

@@ -14,6 +14,7 @@
     detail: null,
     artefacts: [],
     events: [],
+    lineage: [],
     reviewerId: "consultant",
   };
 
@@ -157,10 +158,32 @@
     }
   }
 
+  function renderLineage(edges) {
+    const root = $("lineage-list");
+    root.innerHTML = "";
+    if (!edges.length) {
+      root.textContent = "No lineage edges yet.";
+      return;
+    }
+    for (const edge of edges) {
+      const div = document.createElement("div");
+      div.className = "event";
+      div.innerHTML = `<strong>${edge.relationship}</strong>
+        · ${edge.from_artefact_id} v${edge.from_version}
+        → ${edge.to_artefact_id} v${edge.to_version}
+        <div class="meta">${edge.created_at}</div>`;
+      root.appendChild(div);
+    }
+  }
+
   function setDecisionEnabled(enabled) {
     $("approve-btn").disabled = !enabled;
     $("reject-btn").disabled = !enabled;
     $("revisions-btn").disabled = !enabled;
+  }
+
+  function setExportEnabled(enabled) {
+    $("export-btn").disabled = !enabled;
   }
 
   async function loadArtefact() {
@@ -176,27 +199,67 @@
 
   async function refreshRun() {
     if (!state.runId) return;
-    const [detail, artefacts, events] = await Promise.all([
+    const [detail, artefacts, events, lineage] = await Promise.all([
       api(`/runs/${state.runId}`),
       api(`/runs/${state.runId}/artefacts`),
       api(`/runs/${state.runId}/events`),
+      api(`/runs/${state.runId}/lineage`),
     ]);
     state.detail = detail;
     state.artefacts = artefacts;
     state.events = events;
+    state.lineage = lineage;
     $("run-id").textContent = detail.run.run_id;
     setStatus(detail.run.status);
     renderStages(detail, artefacts);
     renderPending(detail);
     renderArtefactSelect(artefacts, detail.pending_review);
     renderEvents(events);
+    renderLineage(lineage);
     setDecisionEnabled(detail.run.status === "waiting_for_review");
+    setExportEnabled(detail.run.status === "approved");
+    if (detail.run.status !== "approved") {
+      $("export-viewer").textContent =
+        "Approve the Review Package to enable optional adapter export.";
+      $("export-error").hidden = true;
+    }
     if (detail.pending_review || artefacts.length) {
       try {
         await loadArtefact();
       } catch (err) {
         $("artefact-viewer").textContent = `Failed to load artefact: ${err.message}`;
       }
+    }
+  }
+
+  async function exportStub() {
+    if (!state.runId) return;
+    $("export-error").hidden = true;
+    $("export-btn").disabled = true;
+    try {
+      const result = await api(`/runs/${state.runId}/export`, {
+        method: "POST",
+        body: JSON.stringify({
+          workspace_label: "mvp-demo-export",
+          catalog: "main",
+          schema: "sales_dp",
+          include_notebooks: true,
+        }),
+      });
+      const summary = {
+        mode: result.mode,
+        platform: result.platform,
+        note: "Export stub only — no live Databricks deployment",
+        asset_paths: (result.assets || []).map((a) => a.path),
+        warnings: result.warnings || [],
+        metadata: result.metadata || {},
+      };
+      $("export-viewer").textContent = JSON.stringify(summary, null, 2);
+    } catch (err) {
+      $("export-error").textContent = err.message;
+      $("export-error").hidden = false;
+    } finally {
+      setExportEnabled(state.detail?.run?.status === "approved");
     }
   }
 
@@ -270,6 +333,12 @@
   $("approve-btn").addEventListener("click", () => submitDecision("approve"));
   $("reject-btn").addEventListener("click", () => submitDecision("reject"));
   $("revisions-btn").addEventListener("click", () => submitDecision("request_revisions"));
+  $("export-btn").addEventListener("click", () => {
+    exportStub().catch((err) => {
+      $("export-error").textContent = err.message;
+      $("export-error").hidden = false;
+    });
+  });
 
   // Deep-link: /ui/?run_id=...
   const params = new URLSearchParams(window.location.search);

@@ -212,9 +212,11 @@ async def test_approve_all_produces_seven_artefacts(
             ArtefactType.REVIEW_PACKAGE,
         }
         rp_refs = [r for r in refs if r.artefact_type == ArtefactType.REVIEW_PACKAGE]
-        rp = await store.get_artefact(rp_refs[0].artefact_id, rp_refs[0].version)
+        latest_rp = max(rp_refs, key=lambda r: r.version)
+        rp = await store.get_artefact(latest_rp.artefact_id, latest_rp.version)
         assert rp.payload.get("validation_results")
         assert any("PASS:" in str(v) or "FAIL:" in str(v) for v in rp.payload["validation_results"])
+        assert rp.payload.get("decision_state") == "approved"
 
 
 @pytest.mark.integration
