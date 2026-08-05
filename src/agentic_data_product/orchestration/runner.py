@@ -33,7 +33,15 @@ logger = logging.getLogger(__name__)
 
 HitlCompiledGraph = CompiledStateGraph[HitlGraphState, None, HitlGraphState, HitlGraphState]
 
-_REVIEW_INTERRUPT_NODES = frozenset({"await_tr_review", "await_mapping_review"})
+_REVIEW_INTERRUPT_NODES = frozenset(
+    {
+        "await_tr_review",
+        "await_mapping_review",
+        "await_modelling_review",
+        "await_implementation_review",
+        "await_rp_review",
+    }
+)
 
 
 class HitlRunnerError(Exception):
@@ -45,7 +53,7 @@ class InvalidRunStateError(HitlRunnerError):
 
 
 class HitlRunner:
-    """Coordinates ArtefactStore run rows with the LangGraph M3 workflow."""
+    """Coordinates ArtefactStore run rows with the LangGraph M4 workflow."""
 
     def __init__(
         self,

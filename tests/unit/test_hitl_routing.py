@@ -7,7 +7,10 @@ import pytest
 from agentic_data_product.domain.enums import ReviewDecisionKind
 from agentic_data_product.domain.review import ReviewDecisionRequest
 from agentic_data_product.orchestration.graph import (
+    route_after_implementation_review,
     route_after_mapping_review,
+    route_after_modelling_review,
+    route_after_rp_review,
     route_after_tr_review,
 )
 from agentic_data_product.orchestration.state import HitlGraphState
@@ -29,7 +32,7 @@ def test_route_after_tr_review(decision: ReviewDecisionKind, expected: str) -> N
 @pytest.mark.parametrize(
     ("decision", "expected"),
     [
-        (ReviewDecisionKind.APPROVE, "approved"),
+        (ReviewDecisionKind.APPROVE, "modelling"),
         (ReviewDecisionKind.REJECT, "terminated"),
         (ReviewDecisionKind.REQUEST_REVISIONS, "mapping_discovery"),
     ],
@@ -37,6 +40,45 @@ def test_route_after_tr_review(decision: ReviewDecisionKind, expected: str) -> N
 def test_route_after_mapping_review(decision: ReviewDecisionKind, expected: str) -> None:
     state: HitlGraphState = {"run_id": "00000000-0000-0000-0000-000000000001", "decision": decision}
     assert route_after_mapping_review(state) == expected
+
+
+@pytest.mark.parametrize(
+    ("decision", "expected"),
+    [
+        (ReviewDecisionKind.APPROVE, "implementation"),
+        (ReviewDecisionKind.REJECT, "terminated"),
+        (ReviewDecisionKind.REQUEST_REVISIONS, "modelling"),
+    ],
+)
+def test_route_after_modelling_review(decision: ReviewDecisionKind, expected: str) -> None:
+    state: HitlGraphState = {"run_id": "00000000-0000-0000-0000-000000000001", "decision": decision}
+    assert route_after_modelling_review(state) == expected
+
+
+@pytest.mark.parametrize(
+    ("decision", "expected"),
+    [
+        (ReviewDecisionKind.APPROVE, "assemble_rp"),
+        (ReviewDecisionKind.REJECT, "terminated"),
+        (ReviewDecisionKind.REQUEST_REVISIONS, "generate_metrics"),
+    ],
+)
+def test_route_after_implementation_review(decision: ReviewDecisionKind, expected: str) -> None:
+    state: HitlGraphState = {"run_id": "00000000-0000-0000-0000-000000000001", "decision": decision}
+    assert route_after_implementation_review(state) == expected
+
+
+@pytest.mark.parametrize(
+    ("decision", "expected"),
+    [
+        (ReviewDecisionKind.APPROVE, "approved"),
+        (ReviewDecisionKind.REJECT, "terminated"),
+        (ReviewDecisionKind.REQUEST_REVISIONS, "assemble_rp"),
+    ],
+)
+def test_route_after_rp_review(decision: ReviewDecisionKind, expected: str) -> None:
+    state: HitlGraphState = {"run_id": "00000000-0000-0000-0000-000000000001", "decision": decision}
+    assert route_after_rp_review(state) == expected
 
 
 def test_route_after_tr_review_rejects_unknown() -> None:

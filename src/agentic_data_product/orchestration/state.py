@@ -1,4 +1,4 @@
-"""LangGraph state schema for the M3 requirements + mapping workflow."""
+"""LangGraph state schema for the full seven-artefact HITL workflow."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ class HitlGraphState(TypedDict):
     artefact_id: NotRequired[str | None]
     artefact_version: NotRequired[int | None]
     artefact_type: NotRequired[str | None]
-    review_stage: NotRequired[str | None]  # technical_requirement | mapping
+    review_stage: NotRequired[str | None]
     decision: NotRequired[str | None]
 
     # Business Requirement
@@ -45,6 +45,28 @@ class HitlGraphState(TypedDict):
     judge_outcome: NotRequired[str | None]
     mapping_escalated: NotRequired[bool]
     mapping_stage: NotRequired[str | None]
+
+    # Modelling
+    sm_artefact_id: NotRequired[str | None]
+    sm_artefact_version: NotRequired[int | None]
+    sm_payload: NotRequired[dict[str, Any] | None]
+    dm_artefact_id: NotRequired[str | None]
+    dm_artefact_version: NotRequired[int | None]
+    dm_payload: NotRequired[dict[str, Any] | None]
+
+    # Implementation path
+    pipeline_artefact_id: NotRequired[str | None]
+    pipeline_artefact_version: NotRequired[int | None]
+    pipeline_payload: NotRequired[dict[str, Any] | None]
+    pipeline_validation_results: NotRequired[list[str] | None]
+    metrics_artefact_id: NotRequired[str | None]
+    metrics_artefact_version: NotRequired[int | None]
+    metrics_payload: NotRequired[dict[str, Any] | None]
+
+    # Review Package
+    rp_artefact_id: NotRequired[str | None]
+    rp_artefact_version: NotRequired[int | None]
+    rp_payload: NotRequired[dict[str, Any] | None]
 
     # Test hooks (never secrets)
     force_judge_outcome: NotRequired[str | None]

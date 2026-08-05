@@ -1,4 +1,4 @@
-"""M3 LangGraph: BR intake → Technical Requirement HITL → Mapping subgraph HITL."""
+"""M4 LangGraph: BR → TR HITL → Mapping HITL → Modelling HITL → Impl HITL → RP HITL."""
 
 from __future__ import annotations
 
@@ -13,14 +13,24 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import interrupt
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from agentic_data_product.agents.modelling import generate_modelling_artefacts
 from agentic_data_product.agents.requirements import generate_technical_requirement
+from agentic_data_product.agents.review_package import assemble_review_package
 from agentic_data_product.domain.artefacts import (
     ArtefactRef,
     BusinessRequirementPayload,
+    DataModelPayload,
+    SourceRef,
+    TechnicalRequirementPayload,
 )
 from agentic_data_product.domain.enums import ArtefactType, ReviewDecisionKind
 from agentic_data_product.domain.lineage import CreateLineageEdgeRequest
 from agentic_data_product.integrations.llm import create_llm_client
+from agentic_data_product.orchestration.implementation.subgraph import (
+    generate_metrics_node,
+    generate_pipeline_node,
+    validate_pipeline_node,
+)
 from agentic_data_product.orchestration.mapping.subgraph import (
     CONFIGURABLE_SESSION_FACTORY,
     data_mapping_node,
@@ -34,12 +44,14 @@ from agentic_data_product.persistence.store import PostgresArtefactStore
 
 logger = logging.getLogger(__name__)
 
-# Re-export for runner / tests
 __all__ = [
     "CONFIGURABLE_SESSION_FACTORY",
     "build_hitl_graph",
     "compile_hitl_graph",
+    "route_after_implementation_review",
     "route_after_mapping_review",
+    "route_after_modelling_review",
+    "route_after_rp_review",
     "route_after_tr_review",
 ]
 
@@ -71,6 +83,7 @@ def _default_business_requirement(*, title: str | None) -> BusinessRequirementPa
         success_criteria=[
             "Technical Requirement approved via HITL",
             "Mapping data-model slice approved via HITL",
+            "All seven canonical artefacts approved via Review Package",
         ],
         stakeholders=["data_consultant"],
         notes=None,
@@ -256,10 +269,10 @@ async def await_mapping_review(state: HitlGraphState) -> dict[str, Any]:
 
 def route_after_mapping_review(
     state: HitlGraphState,
-) -> Literal["mapping_discovery", "approved", "terminated"]:
+) -> Literal["mapping_discovery", "modelling", "terminated"]:
     decision = state.get("decision")
     if decision == ReviewDecisionKind.APPROVE:
-        return "approved"
+        return "modelling"
     if decision == ReviewDecisionKind.REJECT:
         return "terminated"
     if decision == ReviewDecisionKind.REQUEST_REVISIONS:
@@ -281,8 +294,363 @@ async def reset_mapping_retries(state: HitlGraphState) -> dict[str, Any]:
     }
 
 
+async def generate_modelling_node(
+    state: HitlGraphState,
+    config: RunnableConfig,
+) -> dict[str, Any]:
+    """Modelling Agent: Semantic Model + enriched Data Model; HITL pending = Semantic Model."""
+    session_factory = _session_factory(config)
+    run_id = UUID(state["run_id"])
+    tr_raw = state.get("tr_payload")
+    if not tr_raw:
+        msg = "Technical Requirement payload missing from graph state"
+        raise RuntimeError(msg)
+    tr = TechnicalRequirementPayload.model_validate(tr_raw)
+
+    mapping_dm: DataModelPayload | None = None
+    mapping_source_refs: list[SourceRef] = []
+    mapping_id = state.get("mapping_artefact_id")
+    mapping_ver = state.get("mapping_artefact_version")
+    async with session_factory() as session:
+        store = PostgresArtefactStore(session)
+        if mapping_id and mapping_ver is not None:
+            mapping_art = await store.get_artefact(UUID(str(mapping_id)), int(mapping_ver))
+            mapping_dm = DataModelPayload.model_validate(mapping_art.payload)
+            mapping_source_refs = list(mapping_art.source_refs)
+
+    llm = create_llm_client()
+    semantic, data_model = await generate_modelling_artefacts(
+        tr,
+        mapping_data_model=mapping_dm,
+        llm=llm,
+        feedback=state.get("feedback"),
+    )
+
+    parent_versions: list[ArtefactRef] = []
+    tr_id = state.get("tr_artefact_id")
+    tr_ver = state.get("tr_artefact_version")
+    if tr_id and tr_ver is not None:
+        parent_versions.append(
+            ArtefactRef(
+                artefact_id=UUID(str(tr_id)),
+                artefact_type=ArtefactType.TECHNICAL_REQUIREMENT,
+                version=int(tr_ver),
+                run_id=run_id,
+            )
+        )
+    if mapping_id and mapping_ver is not None:
+        parent_versions.append(
+            ArtefactRef(
+                artefact_id=UUID(str(mapping_id)),
+                artefact_type=ArtefactType.DATA_MODEL,
+                version=int(mapping_ver),
+                run_id=run_id,
+            )
+        )
+
+    # Continue the same Data Model artefact id from mapping when present.
+    dm_artefact_id = (
+        UUID(str(mapping_id))
+        if mapping_id
+        else (UUID(state["dm_artefact_id"]) if state.get("dm_artefact_id") else None)
+    )
+    sm_artefact_id = UUID(state["sm_artefact_id"]) if state.get("sm_artefact_id") else None
+
+    async with session_factory() as session:
+        store = PostgresArtefactStore(session)
+        dm_artefact = await store.save_artefact(
+            run_id=run_id,
+            artefact_type=ArtefactType.DATA_MODEL,
+            payload=data_model.model_dump(mode="json"),
+            artefact_id=dm_artefact_id,
+            created_by=state.get("created_by"),
+            source_refs=cast(list[SourceRef | dict[str, Any]], mapping_source_refs),
+            parent_versions=cast(list[ArtefactRef | dict[str, Any]], parent_versions),
+            governance_metadata=data_model.governance_metadata,
+            validate_payload=True,
+        )
+        for parent in parent_versions:
+            await store.create_lineage_edge(
+                CreateLineageEdgeRequest(
+                    run_id=run_id,
+                    from_artefact_id=parent.artefact_id,
+                    from_version=parent.version,
+                    to_artefact_id=dm_artefact.artefact_id,
+                    to_version=dm_artefact.version,
+                    relationship="derived_from",
+                )
+            )
+
+        sm_parents: list[ArtefactRef] = list(parent_versions)
+        sm_parents.append(
+            ArtefactRef(
+                artefact_id=dm_artefact.artefact_id,
+                artefact_type=ArtefactType.DATA_MODEL,
+                version=dm_artefact.version,
+                run_id=run_id,
+            )
+        )
+        sm_artefact = await store.save_artefact(
+            run_id=run_id,
+            artefact_type=ArtefactType.SEMANTIC_MODEL,
+            payload=semantic.model_dump(mode="json"),
+            artefact_id=sm_artefact_id,
+            created_by=state.get("created_by"),
+            parent_versions=cast(list[ArtefactRef | dict[str, Any]], sm_parents),
+            validate_payload=True,
+        )
+        for parent in sm_parents:
+            await store.create_lineage_edge(
+                CreateLineageEdgeRequest(
+                    run_id=run_id,
+                    from_artefact_id=parent.artefact_id,
+                    from_version=parent.version,
+                    to_artefact_id=sm_artefact.artefact_id,
+                    to_version=sm_artefact.version,
+                    relationship="derived_from",
+                )
+            )
+
+    logger.info(
+        "Generated modelling artefacts run_id=%s sm=%s v%s dm=%s v%s",
+        run_id,
+        sm_artefact.artefact_id,
+        sm_artefact.version,
+        dm_artefact.artefact_id,
+        dm_artefact.version,
+    )
+    return {
+        "sm_artefact_id": str(sm_artefact.artefact_id),
+        "sm_artefact_version": sm_artefact.version,
+        "sm_payload": semantic.model_dump(mode="json"),
+        "dm_artefact_id": str(dm_artefact.artefact_id),
+        "dm_artefact_version": dm_artefact.version,
+        "dm_payload": data_model.model_dump(mode="json"),
+        "mapping_artefact_id": str(dm_artefact.artefact_id),
+        "mapping_artefact_version": dm_artefact.version,
+        "artefact_id": str(sm_artefact.artefact_id),
+        "artefact_version": sm_artefact.version,
+        "artefact_type": ArtefactType.SEMANTIC_MODEL.value,
+        "review_stage": "modelling",
+        "decision": None,
+    }
+
+
+async def await_modelling_review(state: HitlGraphState) -> dict[str, Any]:
+    """HITL interrupt after Semantic Model + Data Model."""
+    resume_value = interrupt(
+        {
+            "stage": "modelling",
+            "artefact_id": state.get("artefact_id"),
+            "artefact_version": state.get("artefact_version"),
+            "artefact_type": state.get("artefact_type"),
+            "feedback": state.get("feedback"),
+        }
+    )
+    if not isinstance(resume_value, dict):
+        msg = f"Expected review decision dict on resume, got {type(resume_value)!r}"
+        raise TypeError(msg)
+    decision = str(resume_value.get("decision", ""))
+    comments = str(resume_value.get("comments") or "")
+    return {
+        "decision": decision,
+        "feedback": comments if decision == ReviewDecisionKind.REQUEST_REVISIONS else None,
+    }
+
+
+def route_after_modelling_review(
+    state: HitlGraphState,
+) -> Literal["modelling", "implementation", "terminated"]:
+    decision = state.get("decision")
+    if decision == ReviewDecisionKind.APPROVE:
+        return "implementation"
+    if decision == ReviewDecisionKind.REJECT:
+        return "terminated"
+    if decision == ReviewDecisionKind.REQUEST_REVISIONS:
+        return "modelling"
+    msg = f"Unknown or missing review decision: {decision!r}"
+    raise ValueError(msg)
+
+
+async def await_implementation_review(state: HitlGraphState) -> dict[str, Any]:
+    """HITL interrupt after Pipeline Spec + Metric Definitions (pending = metrics)."""
+    resume_value = interrupt(
+        {
+            "stage": "implementation",
+            "artefact_id": state.get("artefact_id"),
+            "artefact_version": state.get("artefact_version"),
+            "artefact_type": state.get("artefact_type"),
+            "pipeline_validation_results": state.get("pipeline_validation_results"),
+            "feedback": state.get("feedback"),
+        }
+    )
+    if not isinstance(resume_value, dict):
+        msg = f"Expected review decision dict on resume, got {type(resume_value)!r}"
+        raise TypeError(msg)
+    decision = str(resume_value.get("decision", ""))
+    comments = str(resume_value.get("comments") or "")
+    return {
+        "decision": decision,
+        "feedback": comments if decision == ReviewDecisionKind.REQUEST_REVISIONS else None,
+    }
+
+
+def route_after_implementation_review(
+    state: HitlGraphState,
+) -> Literal["generate_metrics", "assemble_rp", "terminated"]:
+    """Request revisions regenerates Metric Definitions only (M4 AC)."""
+    decision = state.get("decision")
+    if decision == ReviewDecisionKind.APPROVE:
+        return "assemble_rp"
+    if decision == ReviewDecisionKind.REJECT:
+        return "terminated"
+    if decision == ReviewDecisionKind.REQUEST_REVISIONS:
+        return "generate_metrics"
+    msg = f"Unknown or missing review decision: {decision!r}"
+    raise ValueError(msg)
+
+
+async def assemble_review_package_node(
+    state: HitlGraphState,
+    config: RunnableConfig,
+) -> dict[str, Any]:
+    """Assemble Review Package pinning all prior artefact versions."""
+    session_factory = _session_factory(config)
+    run_id = UUID(state["run_id"])
+    title = state.get("title") or "data product"
+
+    pinned: list[ArtefactRef] = []
+    for parent_id, parent_ver, parent_type in (
+        (
+            state.get("br_artefact_id"),
+            state.get("br_artefact_version"),
+            ArtefactType.BUSINESS_REQUIREMENT,
+        ),
+        (
+            state.get("tr_artefact_id"),
+            state.get("tr_artefact_version"),
+            ArtefactType.TECHNICAL_REQUIREMENT,
+        ),
+        (
+            state.get("sm_artefact_id"),
+            state.get("sm_artefact_version"),
+            ArtefactType.SEMANTIC_MODEL,
+        ),
+        (
+            state.get("dm_artefact_id"),
+            state.get("dm_artefact_version"),
+            ArtefactType.DATA_MODEL,
+        ),
+        (
+            state.get("pipeline_artefact_id"),
+            state.get("pipeline_artefact_version"),
+            ArtefactType.PIPELINE_SPECIFICATION,
+        ),
+        (
+            state.get("metrics_artefact_id"),
+            state.get("metrics_artefact_version"),
+            ArtefactType.METRIC_DEFINITIONS,
+        ),
+    ):
+        if parent_id and parent_ver is not None:
+            pinned.append(
+                ArtefactRef(
+                    artefact_id=UUID(str(parent_id)),
+                    artefact_type=parent_type,
+                    version=int(parent_ver),
+                    run_id=run_id,
+                )
+            )
+
+    package = assemble_review_package(
+        title=str(title),
+        pinned=pinned,
+        validation_results=list(state.get("pipeline_validation_results") or []),
+        feedback=state.get("feedback"),
+    )
+
+    parent_versions = list(pinned)
+    existing_id = UUID(state["rp_artefact_id"]) if state.get("rp_artefact_id") else None
+
+    async with session_factory() as session:
+        store = PostgresArtefactStore(session)
+        artefact = await store.save_artefact(
+            run_id=run_id,
+            artefact_type=ArtefactType.REVIEW_PACKAGE,
+            payload=package.model_dump(mode="json"),
+            artefact_id=existing_id,
+            created_by=state.get("created_by"),
+            parent_versions=cast(list[ArtefactRef | dict[str, Any]], parent_versions),
+            validate_payload=True,
+        )
+        for parent in parent_versions:
+            await store.create_lineage_edge(
+                CreateLineageEdgeRequest(
+                    run_id=run_id,
+                    from_artefact_id=parent.artefact_id,
+                    from_version=parent.version,
+                    to_artefact_id=artefact.artefact_id,
+                    to_version=artefact.version,
+                    relationship="derived_from",
+                )
+            )
+
+    logger.info(
+        "Assembled Review Package run_id=%s artefact_id=%s v%s",
+        run_id,
+        artefact.artefact_id,
+        artefact.version,
+    )
+    return {
+        "rp_artefact_id": str(artefact.artefact_id),
+        "rp_artefact_version": artefact.version,
+        "rp_payload": package.model_dump(mode="json"),
+        "artefact_id": str(artefact.artefact_id),
+        "artefact_version": artefact.version,
+        "artefact_type": ArtefactType.REVIEW_PACKAGE.value,
+        "review_stage": "review_package",
+        "decision": None,
+    }
+
+
+async def await_rp_review(state: HitlGraphState) -> dict[str, Any]:
+    """HITL interrupt after Review Package."""
+    resume_value = interrupt(
+        {
+            "stage": "review_package",
+            "artefact_id": state.get("artefact_id"),
+            "artefact_version": state.get("artefact_version"),
+            "artefact_type": state.get("artefact_type"),
+            "feedback": state.get("feedback"),
+        }
+    )
+    if not isinstance(resume_value, dict):
+        msg = f"Expected review decision dict on resume, got {type(resume_value)!r}"
+        raise TypeError(msg)
+    decision = str(resume_value.get("decision", ""))
+    comments = str(resume_value.get("comments") or "")
+    return {
+        "decision": decision,
+        "feedback": comments if decision == ReviewDecisionKind.REQUEST_REVISIONS else None,
+    }
+
+
+def route_after_rp_review(
+    state: HitlGraphState,
+) -> Literal["assemble_rp", "approved", "terminated"]:
+    decision = state.get("decision")
+    if decision == ReviewDecisionKind.APPROVE:
+        return "approved"
+    if decision == ReviewDecisionKind.REJECT:
+        return "terminated"
+    if decision == ReviewDecisionKind.REQUEST_REVISIONS:
+        return "assemble_rp"
+    msg = f"Unknown or missing review decision: {decision!r}"
+    raise ValueError(msg)
+
+
 async def mark_approved(state: HitlGraphState) -> dict[str, Any]:
-    logger.info("Run %s approved through mapping stage (M3 exit)", state["run_id"])
+    logger.info("Run %s approved through Review Package (M4 exit)", state["run_id"])
     return {"decision": ReviewDecisionKind.APPROVE}
 
 
@@ -292,7 +660,7 @@ async def mark_terminated(state: HitlGraphState) -> dict[str, Any]:
 
 
 def build_hitl_graph() -> StateGraph[HitlGraphState, None, HitlGraphState, HitlGraphState]:
-    """Construct the uncompiled M3 requirements + mapping graph."""
+    """Construct the uncompiled M4 seven-artefact HITL graph."""
     graph: StateGraph[HitlGraphState, None, HitlGraphState, HitlGraphState] = StateGraph(
         HitlGraphState
     )
@@ -306,6 +674,14 @@ def build_hitl_graph() -> StateGraph[HitlGraphState, None, HitlGraphState, HitlG
     graph.add_node("mapping_judge", mapping_judge_node)
     graph.add_node("persist_mapping", persist_mapping_node)
     graph.add_node("await_mapping_review", await_mapping_review)
+    graph.add_node("modelling", generate_modelling_node)
+    graph.add_node("await_modelling_review", await_modelling_review)
+    graph.add_node("generate_pipeline", generate_pipeline_node)
+    graph.add_node("validate_pipeline", validate_pipeline_node)
+    graph.add_node("generate_metrics", generate_metrics_node)
+    graph.add_node("await_implementation_review", await_implementation_review)
+    graph.add_node("assemble_rp", assemble_review_package_node)
+    graph.add_node("await_rp_review", await_rp_review)
     graph.add_node("approved", mark_approved)
     graph.add_node("terminated", mark_terminated)
 
@@ -339,6 +715,38 @@ def build_hitl_graph() -> StateGraph[HitlGraphState, None, HitlGraphState, HitlG
         route_after_mapping_review,
         {
             "mapping_discovery": "reset_mapping_retries",
+            "modelling": "modelling",
+            "terminated": "terminated",
+        },
+    )
+    graph.add_edge("modelling", "await_modelling_review")
+    graph.add_conditional_edges(
+        "await_modelling_review",
+        route_after_modelling_review,
+        {
+            "modelling": "modelling",
+            "implementation": "generate_pipeline",
+            "terminated": "terminated",
+        },
+    )
+    graph.add_edge("generate_pipeline", "validate_pipeline")
+    graph.add_edge("validate_pipeline", "generate_metrics")
+    graph.add_edge("generate_metrics", "await_implementation_review")
+    graph.add_conditional_edges(
+        "await_implementation_review",
+        route_after_implementation_review,
+        {
+            "generate_metrics": "generate_metrics",
+            "assemble_rp": "assemble_rp",
+            "terminated": "terminated",
+        },
+    )
+    graph.add_edge("assemble_rp", "await_rp_review")
+    graph.add_conditional_edges(
+        "await_rp_review",
+        route_after_rp_review,
+        {
+            "assemble_rp": "assemble_rp",
             "approved": "approved",
             "terminated": "terminated",
         },
