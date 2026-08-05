@@ -4,7 +4,7 @@
 
 | | |
 | --- | --- |
-| **Status** | Milestone **M3** complete (requirements agent + mapping HITL) |
+| **Status** | Milestone **M5** complete (lightweight UI + observability) |
 | **MVP target** | September 2026 |
 | **Primary MVP user** | Data Consultant |
 | **Stack** | Python 3.12 · uv · FastAPI · LangGraph · PostgreSQL |
@@ -15,7 +15,7 @@
 
 The accelerator helps teams design analytics-ready data products faster. AI agents will produce a **canonical data product model**; humans approve each stage before the workflow continues. Platform-specific assets (for example Databricks pipelines) are generated later via **adapters**.
 
-**M0–M3 scope:** production skeleton, typed canonical artefacts, ArtefactStore, audit/lineage, durable LangGraph HITL, Requirements Agent (BR→TR), fixture-first mapping subgraph with judge retry caps, and production `/runs` APIs. No UI, live source connectors, or adapters yet.
+**M0–M5 scope:** production skeleton through full seven-artefact HITL path, plus lightweight consultant review UI, run event list, and runtime config profile. No live source connectors or platform adapters yet (M6).
 
 Full product intent: [`PRODUCT_SPEC.md`](PRODUCT_SPEC.md).
 
@@ -45,7 +45,7 @@ flowchart TB
 
 Layers: **AI execution** (UI, API, LangGraph) → **canonical model** → **platform adapters**. Details: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
-**M0–M3 implements:** FastAPI + config + logging + PostgreSQL + ArtefactStore + multi-stage HITL graph (TR + mapping) + LLM/discovery integrations + `/health` + `/ready` + `/runs` + `/dev` persistence APIs.
+**M0–M5 implements:** FastAPI + config + logging + PostgreSQL + ArtefactStore + seven-artefact HITL graph + LLM/discovery integrations + `/health` + `/ready` + `/runs` (+ artefacts/events) + `/config/profile` + `/ui` review workspace + `/dev` persistence APIs.
 
 ---
 
@@ -109,9 +109,10 @@ Implemented in **M2** (complete). See [`adr/005-human-in-the-loop-workflow.md`](
 | **M2 HITL skeleton** | **Complete** — evidence in [`docs/milestones/M2/`](docs/milestones/M2/) |
 | **M3 requirements + mapping** | **Complete** — evidence in [`docs/milestones/M3/`](docs/milestones/M3/) |
 | **M4 modelling + Review Package** | **Complete** — evidence in [`docs/milestones/M4/`](docs/milestones/M4/) |
-| M5+ UI / adapter / demo | Not started |
+| **M5 lightweight UI + observability** | **Complete** — evidence in [`docs/milestones/M5/`](docs/milestones/M5/) |
+| M6+ adapter / demo | Not started |
 
-Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close-out: [`docs/milestones/M0/`](docs/milestones/M0/) … [`docs/milestones/M4/`](docs/milestones/M4/).
+Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close-out: [`docs/milestones/M0/`](docs/milestones/M0/) … [`docs/milestones/M5/`](docs/milestones/M5/).
 
 ---
 
@@ -121,18 +122,18 @@ Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close
 .
 ├── adr/
 ├── docs/
-│   └── milestones/M0/, M1/, M2/, M3/, M4/
+│   └── milestones/M0/ … M5/
 ├── src/agentic_data_product/
-│   ├── app/                 # FastAPI (health/ready + /runs HITL + /dev)
+│   ├── app/                 # FastAPI (health/ready + /runs + /config + /ui + /dev)
 │   ├── config/              # pydantic-settings (incl. LLM + mapping caps)
 │   ├── observability/       # logging setup
 │   ├── persistence/         # DB, migrations, ArtefactStore
-│   ├── orchestration/       # LangGraph M3 graph + mapping + checkpointer
-│   ├── agents/              # Requirements Agent (BR → TR)
+│   ├── orchestration/       # LangGraph M4 graph + checkpointer + runner
+│   ├── agents/              # Requirements / modelling / engineer / metrics / RP
 │   ├── domain/              # canonical artefact + run/audit/lineage/review models
 │   ├── integrations/        # LLM clients + fixture discovery
 │   ├── adapters/            # reserved (M6)
-│   └── ui/                  # reserved (M5)
+│   └── ui/                  # lightweight consultant review UI (static)
 ├── tests/unit/
 ├── tests/integration/
 ├── docker-compose.yml
@@ -175,7 +176,15 @@ uv run uvicorn agentic_data_product.app.main:app --reload --host 0.0.0.0 --port 
 
 Or: `make run` / `make dev`
 
-### 4. Health endpoints
+### 4. Consultant review UI (M5)
+
+Open [http://127.0.0.1:8000/ui/](http://127.0.0.1:8000/ui/) (root `/` redirects there).
+
+Submit a Business Requirement, track run progress, review artefact payloads, and use **Approve** / **Reject** / **Request revisions**. Operator events and the runtime config profile are visible in the same workspace. Manual script: [`docs/milestones/M5/happy-path.md`](docs/milestones/M5/happy-path.md).
+
+Additional read APIs: `GET /runs/{id}/artefacts`, `GET /runs/{id}/events`, `GET /config/profile`.
+
+### 5. Health endpoints
 
 ```bash
 curl -s http://127.0.0.1:8000/health | python3 -m json.tool
@@ -185,7 +194,7 @@ curl -s http://127.0.0.1:8000/ready | python3 -m json.tool
 - `GET /health` — process liveness (always 200 if the app is up)  
 - `GET /ready` — PostgreSQL readiness (`200` ready / `503` unavailable)
 
-### 5. Production run / HITL APIs (M4)
+### 6. Production run / HITL APIs (M4)
 
 ```bash
 # Create a run — persists BR, generates Technical Requirement, pauses for TR review
@@ -222,7 +231,7 @@ curl -s -X POST http://127.0.0.1:8000/runs/<run_id>/reviews \
 
 LLM config (optional): `LLM_PROVIDER=deterministic|openai_compatible`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`. Mapping retry caps: `MAPPING_SCHEMA_RETRY_CAP`, `MAPPING_LOGIC_RETRY_CAP`.
 
-### 6. Dev persistence APIs (M1)
+### 7. Dev persistence APIs (M1)
 
 ```bash
 # Create a run row only (no graph) — useful for store/audit validation
@@ -232,7 +241,7 @@ curl -s -X POST http://127.0.0.1:8000/dev/runs -H 'content-type: application/jso
 
 Routes: `POST/GET /dev/runs`, `POST/GET /dev/artefacts`, `POST/GET /dev/lineage`, `GET /dev/audit`.
 
-### 7. Tests and quality
+### 8. Tests and quality
 
 ```bash
 make verify   # lint, format check, mypy, unit + integration (requires Postgres + migrate)
@@ -248,7 +257,7 @@ uv run pytest tests/unit -q
 uv run pytest tests/integration -q -m integration
 ```
 
-### 8. Full stack via Docker Compose
+### 9. Full stack via Docker Compose
 
 ```bash
 docker compose up --build
@@ -274,7 +283,8 @@ uv run pre-commit run --all-files
 | **M2** | LangGraph + HITL skeleton — **complete** |
 | **M3** | Requirements + mapping — **complete** |
 | **M4** | Modelling, implementation path, Review Package — **complete** |
-| **M5–M7** | UI, adapter, demo |
+| **M5** | Lightweight UI + observability — **complete** |
+| **M6–M7** | Adapter, demo |
 
 See [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md).
 
