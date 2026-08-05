@@ -19,6 +19,7 @@
 | Alembic migrations / artefact tables | M1 |
 | LangGraph workflows and HITL | **M2 complete** — durable checkpointer; multi-stage reviews from M3 |
 | Agents / LLM integration | **M3 complete** — Requirements Agent + optional LLM client; fixture discovery |
-| Modelling / implementation agents | M4 |
-| Review UI | M5 |
-| Databricks adapter | M6 |
+| Modelling / implementation agents | **M4 complete** |
+| Review UI | **M5 complete** |
+| Databricks adapter (export stub) | **M6 complete** — live deploy deferred |
+| MVP demo / DoD | M7 |

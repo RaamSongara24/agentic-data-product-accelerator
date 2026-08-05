@@ -15,7 +15,7 @@
 
 The accelerator helps teams design analytics-ready data products faster. AI agents will produce a **canonical data product model**; humans approve each stage before the workflow continues. Platform-specific assets (for example Databricks pipelines) are generated later via **adapters**.
 
-**M0–M5 scope:** production skeleton through full seven-artefact HITL path, plus lightweight consultant review UI, run event list, and runtime config profile. No live source connectors or platform adapters yet (M6).
+**M0–M6 scope:** production skeleton through full seven-artefact HITL path, lightweight consultant review UI, and Databricks `PlatformAdapter` export stub (no live deploy). No live source connectors yet.
 
 Full product intent: [`PRODUCT_SPEC.md`](PRODUCT_SPEC.md).
 
@@ -110,9 +110,10 @@ Implemented in **M2** (complete). See [`adr/005-human-in-the-loop-workflow.md`](
 | **M3 requirements + mapping** | **Complete** — evidence in [`docs/milestones/M3/`](docs/milestones/M3/) |
 | **M4 modelling + Review Package** | **Complete** — evidence in [`docs/milestones/M4/`](docs/milestones/M4/) |
 | **M5 lightweight UI + observability** | **Complete** — evidence in [`docs/milestones/M5/`](docs/milestones/M5/) |
-| M6+ adapter / demo | Not started |
+| **M6 adapter boundary + hardening** | **Complete** — evidence in [`docs/milestones/M6/`](docs/milestones/M6/) |
+| M7 MVP demo | Not started |
 
-Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close-out: [`docs/milestones/M0/`](docs/milestones/M0/) … [`docs/milestones/M5/`](docs/milestones/M5/).
+Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close-out: [`docs/milestones/M0/`](docs/milestones/M0/) … [`docs/milestones/M6/`](docs/milestones/M6/).
 
 ---
 
@@ -122,17 +123,17 @@ Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close
 .
 ├── adr/
 ├── docs/
-│   └── milestones/M0/ … M5/
+│   └── milestones/M0/ … M6/
 ├── src/agentic_data_product/
 │   ├── app/                 # FastAPI (health/ready + /runs + /config + /ui + /dev)
 │   ├── config/              # pydantic-settings (incl. LLM + mapping caps)
-│   ├── observability/       # logging setup
+│   ├── observability/       # logging setup + error taxonomy
 │   ├── persistence/         # DB, migrations, ArtefactStore
 │   ├── orchestration/       # LangGraph M4 graph + checkpointer + runner
 │   ├── agents/              # Requirements / modelling / engineer / metrics / RP
 │   ├── domain/              # canonical artefact + run/audit/lineage/review models
 │   ├── integrations/        # LLM clients + fixture discovery
-│   ├── adapters/            # reserved (M6)
+│   ├── adapters/            # PlatformAdapter + Databricks export stub
 │   └── ui/                  # lightweight consultant review UI (static)
 ├── tests/unit/
 ├── tests/integration/
@@ -284,7 +285,8 @@ uv run pre-commit run --all-files
 | **M3** | Requirements + mapping — **complete** |
 | **M4** | Modelling, implementation path, Review Package — **complete** |
 | **M5** | Lightweight UI + observability — **complete** |
-| **M6–M7** | Adapter, demo |
+| **M6** | Adapter boundary + Databricks export stub | **Complete** — [`docs/milestones/M6/`](docs/milestones/M6/) |
+| **M7** | MVP demo | Not started |
 
 See [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md).
 

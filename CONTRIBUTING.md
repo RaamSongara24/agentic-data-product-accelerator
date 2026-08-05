@@ -138,7 +138,7 @@ Do not embed Databricks (or other vendor) write calls in agent nodes.
 
 ## How to add a new platform adapter
 
-1. Implement `PlatformAdapter` under `src/adapters/<platform>/`.  
+1. Implement `PlatformAdapter` under `src/agentic_data_product/adapters/<platform>/`.  
 2. Accept **approved** canonical artefacts only; produce platform-specific outputs.  
 3. Do not change upstream agent prompts/graphs to target the new platform.  
 4. Add fixture-based unit tests (no live deploy required for MVP-quality contributions).  
