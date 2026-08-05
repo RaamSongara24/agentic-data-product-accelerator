@@ -30,6 +30,7 @@ from agentic_data_product.domain.run import (
     RunDetail,
     WorkflowRun,
 )
+from agentic_data_product.domain.user_context import UserContext
 
 __all__ = [
     "PAYLOAD_MODEL_BY_TYPE",
@@ -56,6 +57,7 @@ __all__ = [
     "SemanticModelPayload",
     "SourceRef",
     "TechnicalRequirementPayload",
+    "UserContext",
     "WorkflowRun",
     "validate_artefact_payload",
 ]

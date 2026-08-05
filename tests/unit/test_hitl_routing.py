@@ -6,8 +6,24 @@ import pytest
 
 from agentic_data_product.domain.enums import ReviewDecisionKind
 from agentic_data_product.domain.review import ReviewDecisionRequest
-from agentic_data_product.orchestration.graph import route_after_review
+from agentic_data_product.orchestration.graph import (
+    route_after_mapping_review,
+    route_after_tr_review,
+)
 from agentic_data_product.orchestration.state import HitlGraphState
+
+
+@pytest.mark.parametrize(
+    ("decision", "expected"),
+    [
+        (ReviewDecisionKind.APPROVE, "mapping_discovery"),
+        (ReviewDecisionKind.REJECT, "terminated"),
+        (ReviewDecisionKind.REQUEST_REVISIONS, "generate_tr"),
+    ],
+)
+def test_route_after_tr_review(decision: ReviewDecisionKind, expected: str) -> None:
+    state: HitlGraphState = {"run_id": "00000000-0000-0000-0000-000000000001", "decision": decision}
+    assert route_after_tr_review(state) == expected
 
 
 @pytest.mark.parametrize(
@@ -15,18 +31,18 @@ from agentic_data_product.orchestration.state import HitlGraphState
     [
         (ReviewDecisionKind.APPROVE, "approved"),
         (ReviewDecisionKind.REJECT, "terminated"),
-        (ReviewDecisionKind.REQUEST_REVISIONS, "generate_stub"),
+        (ReviewDecisionKind.REQUEST_REVISIONS, "mapping_discovery"),
     ],
 )
-def test_route_after_review(decision: ReviewDecisionKind, expected: str) -> None:
+def test_route_after_mapping_review(decision: ReviewDecisionKind, expected: str) -> None:
     state: HitlGraphState = {"run_id": "00000000-0000-0000-0000-000000000001", "decision": decision}
-    assert route_after_review(state) == expected
+    assert route_after_mapping_review(state) == expected
 
 
-def test_route_after_review_rejects_unknown() -> None:
+def test_route_after_tr_review_rejects_unknown() -> None:
     state: HitlGraphState = {"run_id": "00000000-0000-0000-0000-000000000001", "decision": "noop"}
     with pytest.raises(ValueError, match="Unknown"):
-        route_after_review(state)
+        route_after_tr_review(state)
 
 
 def test_review_decision_request_schema() -> None:

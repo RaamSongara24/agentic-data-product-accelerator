@@ -1,4 +1,16 @@
-"""External integrations (LLM providers, source discovery).
+"""External integrations (LLM providers, source discovery)."""
 
-M0: package reserved. Implementations begin in later milestones.
-"""
+from agentic_data_product.integrations.discovery import (
+    FIXTURE_CATALOGUE,
+    INACCESSIBLE_OBJECT_IDS,
+    discover_accessible_objects,
+)
+from agentic_data_product.integrations.llm import LlmClient, create_llm_client
+
+__all__ = [
+    "FIXTURE_CATALOGUE",
+    "INACCESSIBLE_OBJECT_IDS",
+    "LlmClient",
+    "create_llm_client",
+    "discover_accessible_objects",
+]

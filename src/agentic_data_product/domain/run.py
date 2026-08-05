@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from agentic_data_product.domain.artefacts import ArtefactRef, BusinessRequirementPayload
 from agentic_data_product.domain.enums import RunStatus
 from agentic_data_product.domain.review import PendingReview
+from agentic_data_product.domain.user_context import UserContext
 
 
 class WorkflowRun(BaseModel):
@@ -39,7 +40,7 @@ class CreateWorkflowRunRequest(BaseModel):
 
 
 class CreateRunApiRequest(BaseModel):
-    """Production ``POST /runs`` body — starts the M2 HITL stub graph."""
+    """Production ``POST /runs`` body — starts the M3 requirements + mapping graph."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -47,6 +48,7 @@ class CreateRunApiRequest(BaseModel):
     created_by: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     business_requirement: BusinessRequirementPayload | None = None
+    user_context: UserContext | None = None
 
 
 class RunDetail(BaseModel):

@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 
 HitlCompiledGraph = CompiledStateGraph[HitlGraphState, None, HitlGraphState, HitlGraphState]
 
+_REVIEW_INTERRUPT_NODES = frozenset({"await_tr_review", "await_mapping_review"})
+
 
 class HitlRunnerError(Exception):
     """Base error for HITL runner operations."""
@@ -43,7 +45,7 @@ class InvalidRunStateError(HitlRunnerError):
 
 
 class HitlRunner:
-    """Coordinates ArtefactStore run rows with the LangGraph HITL stub workflow."""
+    """Coordinates ArtefactStore run rows with the LangGraph M3 workflow."""
 
     def __init__(
         self,
@@ -79,16 +81,30 @@ class HitlRunner:
         if request.business_requirement is not None:
             seed = request.business_requirement.model_dump(mode="json")
 
+        user_id = (
+            request.user_context.user_id
+            if request.user_context is not None
+            else (request.created_by or "consultant")
+        )
+        accessible = (
+            request.user_context.accessible_object_ids if request.user_context is not None else None
+        )
+
         initial: HitlGraphState = {
             "run_id": str(run.run_id),
             "title": request.title,
             "created_by": request.created_by,
+            "user_id": user_id,
+            "accessible_object_ids": accessible,
             "seed_payload": seed,
             "feedback": None,
             "artefact_id": None,
             "artefact_version": None,
             "artefact_type": None,
             "decision": None,
+            "schema_retry_count": 0,
+            "logic_retry_count": 0,
+            "mapping_escalated": False,
         }
         await self._graph.ainvoke(initial, config=self._thread_config(run.run_id))
         return await self._sync_and_detail(run.run_id)
@@ -145,7 +161,7 @@ class HitlRunner:
         next_nodes = tuple(snapshot.next or ())
         values = snapshot.values or {}
 
-        if "await_review" in next_nodes:
+        if _REVIEW_INTERRUPT_NODES.intersection(next_nodes):
             target = RunStatus.WAITING_FOR_REVIEW
         elif not next_nodes:
             decision = values.get("decision")
@@ -173,16 +189,24 @@ class HitlRunner:
         async with self._session_factory() as session:
             store = PostgresArtefactStore(session)
             refs = await store.list_artefacts_for_run(run.run_id)
-            br_refs = [r for r in refs if r.artefact_type == ArtefactType.BUSINESS_REQUIREMENT]
-            if br_refs:
-                latest = max(br_refs, key=lambda r: r.version)
+            if refs:
+                # Prefer the artefact type currently under review when present.
+                snapshot = await self._graph.aget_state(self._thread_config(run.run_id))
+                values = snapshot.values or {}
+                current_type = values.get("artefact_type")
+                if current_type:
+                    typed = [r for r in refs if r.artefact_type == ArtefactType(str(current_type))]
+                    if typed:
+                        latest = max(typed, key=lambda r: r.version)
+                if latest is None:
+                    latest = max(refs, key=lambda r: (r.artefact_type.value, r.version))
 
         if run.status == RunStatus.WAITING_FOR_REVIEW:
             snapshot = await self._graph.aget_state(self._thread_config(run.run_id))
             values = snapshot.values or {}
             artefact_id = values.get("artefact_id")
             artefact_version = values.get("artefact_version")
-            artefact_type = values.get("artefact_type") or ArtefactType.BUSINESS_REQUIREMENT
+            artefact_type = values.get("artefact_type") or ArtefactType.TECHNICAL_REQUIREMENT
             if artefact_id and artefact_version is not None:
                 pending = PendingReview(
                     artefact=ArtefactRef(

@@ -1,4 +1,4 @@
-"""LangGraph orchestration: HITL stub graph, Postgres checkpointer, run runner."""
+"""LangGraph orchestration: M3 requirements + mapping graph, checkpointer, runner."""
 
 from agentic_data_product.orchestration.checkpointer import (
     CheckpointPool,

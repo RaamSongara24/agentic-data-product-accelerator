@@ -1,8 +1,9 @@
 """Application configuration loaded from environment variables."""
 
 from functools import lru_cache
+from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,6 +28,20 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="postgresql+asyncpg://adp:adp@localhost:5432/adp",
     )
+
+    # LLM — secrets via env only; never placed in LangGraph state.
+    llm_provider: Literal["deterministic", "openai_compatible"] = Field(
+        default="deterministic",
+        description="Requirements agent provider (deterministic default for CI/tests)",
+    )
+    llm_api_key: SecretStr | None = Field(default=None)
+    llm_model: str = Field(default="gpt-4o-mini")
+    llm_base_url: str = Field(default="https://api.openai.com/v1")
+    llm_timeout_seconds: float = Field(default=60.0, gt=0)
+
+    # Mapping judge retry caps (ARCHITECTURE §7.3)
+    mapping_schema_retry_cap: int = Field(default=2, ge=0)
+    mapping_logic_retry_cap: int = Field(default=2, ge=0)
 
     @property
     def is_production(self) -> bool:

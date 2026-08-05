@@ -1,4 +1,4 @@
-"""LangGraph state schema for the M2 HITL stub workflow."""
+"""LangGraph state schema for the M3 requirements + mapping workflow."""
 
 from __future__ import annotations
 
@@ -11,9 +11,41 @@ class HitlGraphState(TypedDict):
     run_id: str
     title: NotRequired[str | None]
     created_by: NotRequired[str | None]
+    user_id: NotRequired[str | None]
+    accessible_object_ids: NotRequired[list[str] | None]
     seed_payload: NotRequired[dict[str, Any] | None]
     feedback: NotRequired[str | None]
+
+    # Current HITL artefact pointer
     artefact_id: NotRequired[str | None]
     artefact_version: NotRequired[int | None]
     artefact_type: NotRequired[str | None]
+    review_stage: NotRequired[str | None]  # technical_requirement | mapping
     decision: NotRequired[str | None]
+
+    # Business Requirement
+    br_artefact_id: NotRequired[str | None]
+    br_artefact_version: NotRequired[int | None]
+    br_payload: NotRequired[dict[str, Any] | None]
+
+    # Technical Requirement
+    tr_artefact_id: NotRequired[str | None]
+    tr_artefact_version: NotRequired[int | None]
+    tr_payload: NotRequired[dict[str, Any] | None]
+
+    # Mapping subgraph
+    discovered_objects: NotRequired[list[dict[str, Any]] | None]
+    discovered_object_ids: NotRequired[list[str] | None]
+    mapping_proposal: NotRequired[dict[str, Any] | None]
+    mapping_artefact_id: NotRequired[str | None]
+    mapping_artefact_version: NotRequired[int | None]
+    schema_retry_count: NotRequired[int]
+    logic_retry_count: NotRequired[int]
+    judge_notes: NotRequired[str | None]
+    judge_outcome: NotRequired[str | None]
+    mapping_escalated: NotRequired[bool]
+    mapping_stage: NotRequired[str | None]
+
+    # Test hooks (never secrets)
+    force_judge_outcome: NotRequired[str | None]
+    force_empty_mapping_sources: NotRequired[bool]
