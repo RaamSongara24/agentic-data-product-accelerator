@@ -39,10 +39,10 @@ flowchart LR
 | **M1** | Artefact schemas + ArtefactStore + audit/lineage tables | Round-trip save/load versions — **complete** |
 | **M2** | Minimal LangGraph + Postgres checkpointer + HITL API | Approve / Reject / Request revisions on one dummy artefact — **complete** |
 | **M3** | Business → Technical Requirement + Mapping subgraph + reviews | End-to-end through mapping HITL with fixtures — **complete** |
-| **M4** | Semantic/Data Model, Pipeline Spec, Metric Definitions, Review Package | Full canonical path with per-stage reviews |
-| **M5** | Lightweight UI + run progress + operator events | Consultant can complete a run in the UI |
-| **M6** | Databricks adapter interface (+ stub/export); hardening | Adapter maps approved artefacts; security checks |
-| **M7** | Demo script, polish, DoD checklist | Stakeholder MVP demonstration |
+| **M4** | Semantic/Data Model, Pipeline Spec, Metric Definitions, Review Package | Full canonical path with per-stage reviews — **complete** |
+| **M5** | Lightweight UI + run progress + operator events | Consultant can complete a run in the UI — **complete** |
+| **M6** | Databricks adapter interface (+ stub/export); hardening | Adapter maps approved artefacts; security checks — **complete** |
+| **M7** | Demo script, polish, DoD checklist | Stakeholder MVP demonstration — **complete** |
 
 ---
 
@@ -209,6 +209,8 @@ flowchart LR
 
 ### M7 — MVP demonstration and DoD
 
+**Status:** Complete — evidence in [`docs/milestones/M7/`](docs/milestones/M7/)
+
 **Deliverables**
 
 - Demo script and sample Business Requirement  
@@ -223,7 +225,7 @@ flowchart LR
 
 **Exit criteria**
 
-- PRODUCT_SPEC §14.1 MVP definition of done satisfied  
+- PRODUCT_SPEC §14.1 MVP definition of done satisfied — **met**  
 
 ---
 

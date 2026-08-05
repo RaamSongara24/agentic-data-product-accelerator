@@ -4,7 +4,7 @@
 
 | | |
 | --- | --- |
-| **Status** | Milestone **M5** complete (lightweight UI + observability) |
+| **Status** | Milestone **M7** complete — September 2026 MVP demonstration ready |
 | **MVP target** | September 2026 |
 | **Primary MVP user** | Data Consultant |
 | **Stack** | Python 3.12 · uv · FastAPI · LangGraph · PostgreSQL |
@@ -15,7 +15,7 @@
 
 The accelerator helps teams design analytics-ready data products faster. AI agents will produce a **canonical data product model**; humans approve each stage before the workflow continues. Platform-specific assets (for example Databricks pipelines) are generated later via **adapters**.
 
-**M0–M6 scope:** production skeleton through full seven-artefact HITL path, lightweight consultant review UI, and Databricks `PlatformAdapter` export stub (no live deploy). No live source connectors yet.
+**M0–M7 scope:** production skeleton through full seven-artefact HITL path, lightweight consultant review UI, Databricks `PlatformAdapter` export stub (no live deploy), and MVP demo / DoD close-out. No live source connectors yet.
 
 Full product intent: [`PRODUCT_SPEC.md`](PRODUCT_SPEC.md).
 
@@ -45,7 +45,7 @@ flowchart TB
 
 Layers: **AI execution** (UI, API, LangGraph) → **canonical model** → **platform adapters**. Details: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
-**M0–M5 implements:** FastAPI + config + logging + PostgreSQL + ArtefactStore + seven-artefact HITL graph + LLM/discovery integrations + `/health` + `/ready` + `/runs` (+ artefacts/events) + `/config/profile` + `/ui` review workspace + `/dev` persistence APIs.
+**M0–M7 implements:** FastAPI + config + logging + PostgreSQL + ArtefactStore + seven-artefact HITL graph + LLM/discovery integrations + `/health` + `/ready` + `/runs` (+ artefacts/events/lineage/export) + `/config/profile` + `/ui` review workspace + `/dev` persistence APIs.
 
 ---
 
@@ -111,9 +111,9 @@ Implemented in **M2** (complete). See [`adr/005-human-in-the-loop-workflow.md`](
 | **M4 modelling + Review Package** | **Complete** — evidence in [`docs/milestones/M4/`](docs/milestones/M4/) |
 | **M5 lightweight UI + observability** | **Complete** — evidence in [`docs/milestones/M5/`](docs/milestones/M5/) |
 | **M6 adapter boundary + hardening** | **Complete** — evidence in [`docs/milestones/M6/`](docs/milestones/M6/) |
-| M7 MVP demo | Not started |
+| **M7 MVP demo + DoD** | **Complete** — evidence in [`docs/milestones/M7/`](docs/milestones/M7/) |
 
-Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close-out: [`docs/milestones/M0/`](docs/milestones/M0/) … [`docs/milestones/M6/`](docs/milestones/M6/).
+Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close-out: [`docs/milestones/M0/`](docs/milestones/M0/) … [`docs/milestones/M7/`](docs/milestones/M7/).
 
 ---
 
@@ -123,7 +123,7 @@ Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close
 .
 ├── adr/
 ├── docs/
-│   └── milestones/M0/ … M6/
+│   └── milestones/M0/ … M7/
 ├── src/agentic_data_product/
 │   ├── app/                 # FastAPI (health/ready + /runs + /config + /ui + /dev)
 │   ├── config/              # pydantic-settings (incl. LLM + mapping caps)
@@ -153,6 +153,28 @@ Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close
 - [uv](https://docs.astral.sh/uv/)
 - Docker + Docker Compose (for PostgreSQL)
 
+### Environment variables
+
+Copy [`.env.example`](.env.example) to `.env`. Common settings:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `APP_NAME` | `agentic-data-product` | Service name |
+| `APP_ENV` | `development` | Environment label (enables reload when `development`) |
+| `LOG_LEVEL` | `INFO` | Logging level |
+| `LOG_JSON` | `false` | Structured JSON logs when `true` |
+| `API_HOST` / `API_PORT` | `0.0.0.0` / `8000` | Bind address |
+| `DATABASE_URL` | `postgresql+asyncpg://adp:adp@localhost:5432/adp` | App DB + LangGraph checkpointer |
+| `LLM_PROVIDER` | `deterministic` | `deterministic` (offline demo) or `openai_compatible` |
+| `LLM_API_KEY` | _(empty)_ | Required only for `openai_compatible` |
+| `LLM_MODEL` | `gpt-4o-mini` | Model id for compatible provider |
+| `LLM_BASE_URL` | OpenAI URL | Compatible API base |
+| `LLM_TIMEOUT_SECONDS` | `60` | LLM HTTP timeout |
+| `MAPPING_SCHEMA_RETRY_CAP` | `2` | Mapping judge schema retry cap |
+| `MAPPING_LOGIC_RETRY_CAP` | `2` | Mapping judge logic retry cap |
+
+Secrets stay in env only — never committed or stored in graph state.
+
 ### 1. Install dependencies
 
 ```bash
@@ -177,13 +199,17 @@ uv run uvicorn agentic_data_product.app.main:app --reload --host 0.0.0.0 --port 
 
 Or: `make run` / `make dev`
 
-### 4. Consultant review UI (M5)
+### 4. Consultant review UI + MVP demo (M5–M7)
 
 Open [http://127.0.0.1:8000/ui/](http://127.0.0.1:8000/ui/) (root `/` redirects there).
 
-Submit a Business Requirement, track run progress, review artefact payloads, and use **Approve** / **Reject** / **Request revisions**. Operator events and the runtime config profile are visible in the same workspace. Manual script: [`docs/milestones/M5/happy-path.md`](docs/milestones/M5/happy-path.md).
+Submit a Business Requirement, track run progress, review artefact payloads, and use **Approve** / **Reject** / **Request revisions**. After approval, inspect **audit events**, **lineage**, and optionally run the **Databricks export stub** (not a live deploy).
 
-Additional read APIs: `GET /runs/{id}/artefacts`, `GET /runs/{id}/events`, `GET /config/profile`.
+**Stakeholder / newcomer walkthrough:** [`docs/milestones/M7/demo-script.md`](docs/milestones/M7/demo-script.md)  
+**Sample Business Requirement:** [`docs/milestones/M7/sample-business-requirement.md`](docs/milestones/M7/sample-business-requirement.md)  
+**§14.1 DoD checklist:** [`docs/milestones/M7/dod-checklist.md`](docs/milestones/M7/dod-checklist.md)
+
+Additional APIs: `GET /runs/{id}/artefacts`, `GET /runs/{id}/events`, `GET /runs/{id}/lineage`, `POST /runs/{id}/export`, `GET /config/profile`.
 
 ### 5. Health endpoints
 
@@ -195,7 +221,7 @@ curl -s http://127.0.0.1:8000/ready | python3 -m json.tool
 - `GET /health` — process liveness (always 200 if the app is up)  
 - `GET /ready` — PostgreSQL readiness (`200` ready / `503` unavailable)
 
-### 6. Production run / HITL APIs (M4)
+### 6. Production run / HITL APIs
 
 ```bash
 # Create a run — persists BR, generates Technical Requirement, pauses for TR review
@@ -205,7 +231,7 @@ curl -s -X POST http://127.0.0.1:8000/runs -H 'content-type: application/json' \
     "created_by":"consultant",
     "user_context":{"user_id":"consultant"},
     "business_requirement":{
-      "title":"Sales analytics",
+      "title":"Sales analytics data product",
       "intent":"Governed sales analytics data product",
       "objectives":["Analyse order amounts by customer and region"],
       "constraints":["Do not use inaccessible HR datasets"],
@@ -222,15 +248,23 @@ curl -s http://127.0.0.1:8000/runs/<run_id> | python3 -m json.tool
 curl -s -X POST http://127.0.0.1:8000/runs/<run_id>/reviews \
   -H 'content-type: application/json' \
   -d '{"decision":"approve","comments":"ok","reviewer_id":"consultant"}' | python3 -m json.tool
+
+# Audit + lineage
+curl -s http://127.0.0.1:8000/runs/<run_id>/events | python3 -m json.tool
+curl -s http://127.0.0.1:8000/runs/<run_id>/lineage | python3 -m json.tool
+
+# Optional Databricks export stub (requires approved Review Package; no live deploy)
+curl -s -X POST http://127.0.0.1:8000/runs/<run_id>/export \
+  -H 'content-type: application/json' \
+  -d '{"workspace_label":"mvp-demo-export","catalog":"main","schema":"sales_dp"}' \
+  | python3 -m json.tool
 ```
 
 | Decision | Effect |
 | --- | --- |
-| `approve` | Advance to next stage (final Review Package approve → `approved`) |
+| `approve` | Advance to next stage (final Review Package approve → `approved` + RP `decision_state=approved`) |
 | `reject` | Run status → `terminated` |
 | `request_revisions` | Regenerate current stage artefact + return to `waiting_for_review` (metrics revisions regenerate Metric Definitions only) |
-
-LLM config (optional): `LLM_PROVIDER=deterministic|openai_compatible`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`. Mapping retry caps: `MAPPING_SCHEMA_RETRY_CAP`, `MAPPING_LOGIC_RETRY_CAP`.
 
 ### 7. Dev persistence APIs (M1)
 
@@ -266,7 +300,7 @@ docker compose up --build
 
 API: http://localhost:8000/health
 
-### 9. Pre-commit (optional local hooks)
+### 10. Pre-commit (optional local hooks)
 
 ```bash
 uv run pre-commit install
@@ -286,7 +320,7 @@ uv run pre-commit run --all-files
 | **M4** | Modelling, implementation path, Review Package — **complete** |
 | **M5** | Lightweight UI + observability — **complete** |
 | **M6** | Adapter boundary + Databricks export stub | **Complete** — [`docs/milestones/M6/`](docs/milestones/M6/) |
-| **M7** | MVP demo | Not started |
+| **M7** | MVP demo + DoD | **Complete** — [`docs/milestones/M7/`](docs/milestones/M7/) |
 
 See [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md).
 
@@ -311,6 +345,9 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md). Architecture decisions: [`adr/`](adr/)
 | [`docs/milestones/M2/`](docs/milestones/M2/) | M2 close-out evidence |
 | [`docs/milestones/M3/`](docs/milestones/M3/) | M3 close-out evidence |
 | [`docs/milestones/M4/`](docs/milestones/M4/) | M4 close-out evidence |
+| [`docs/milestones/M5/`](docs/milestones/M5/) | M5 close-out evidence |
+| [`docs/milestones/M6/`](docs/milestones/M6/) | M6 close-out evidence |
+| [`docs/milestones/M7/`](docs/milestones/M7/) | M7 MVP demo + §14.1 DoD |
 | [`adr/`](adr/) | Decision records |
 
 ---
