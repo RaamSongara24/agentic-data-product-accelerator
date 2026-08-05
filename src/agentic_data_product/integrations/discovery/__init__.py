@@ -7,6 +7,7 @@ from agentic_data_product.integrations.discovery.fixtures import (
     FixtureObject,
 )
 from agentic_data_product.integrations.discovery.service import (
+    DiscoveryPermissionError,
     discover_accessible_objects,
     object_ids,
 )
@@ -14,6 +15,7 @@ from agentic_data_product.integrations.discovery.service import (
 __all__ = [
     "FIXTURE_CATALOGUE",
     "INACCESSIBLE_OBJECT_IDS",
+    "DiscoveryPermissionError",
     "FixtureColumn",
     "FixtureObject",
     "discover_accessible_objects",

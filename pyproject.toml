@@ -1,7 +1,7 @@
 [project]
 name = "agentic-data-product"
 version = "0.1.0"
-description = "Agentic Data Product Design Platform — Milestone M5 lightweight UI and observability"
+description = "Agentic Data Product Design Platform — Milestone M6 adapter boundary and hardening"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Proprietary" }

@@ -1,0 +1,601 @@
+{
+  "description": "Frozen approved artefact set for DatabricksAdapter unit tests (M6)",
+  "run_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "artefacts": [
+    {
+      "artefact_id": "00000000-0000-0000-0000-000000000001",
+      "run_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "artefact_type": "business_requirement",
+      "version": 1,
+      "payload": {
+        "title": "Sales analytics data product",
+        "intent": "Deliver a governed sales analytics data product covering orders, customers, and products.",
+        "objectives": [
+          "Analyse order amounts and order counts by customer and region"
+        ],
+        "constraints": [
+          "Must not use HR or security datasets the consultant cannot access"
+        ],
+        "success_criteria": [
+          "All seven canonical artefacts approved via Review Package"
+        ],
+        "stakeholders": [
+          "data_consultant"
+        ],
+        "notes": null
+      },
+      "created_at": "2026-08-05T12:00:00Z",
+      "created_by": "consultant",
+      "governance_metadata": null,
+      "source_refs": [],
+      "parent_versions": []
+    },
+    {
+      "artefact_id": "00000000-0000-0000-0000-000000000002",
+      "run_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "artefact_type": "technical_requirement",
+      "version": 1,
+      "payload": {
+        "summary": "Technical specification for: Sales analytics data product",
+        "behaviours": [
+          "Persist and version canonical artefacts for the requested data product",
+          "Support human review of generated technical requirements before mapping",
+          "Address business intent: Deliver a governed sales analytics data product covering orders, customers, and products."
+        ],
+        "entities": [
+          "Order",
+          "Customer",
+          "Region"
+        ],
+        "transformations": [
+          "Map source attributes into logical entity 'Order'",
+          "Map source attributes into logical entity 'Customer'",
+          "Map source attributes into logical entity 'Region'"
+        ],
+        "governance_requirements": [
+          "Must not use HR or security datasets the consultant cannot access"
+        ],
+        "acceptance_criteria": [
+          "All seven canonical artefacts approved via Review Package"
+        ],
+        "candidate_facts": [
+          "fact_order"
+        ],
+        "candidate_dimensions": [
+          "Customer",
+          "Region",
+          "Date"
+        ],
+        "candidate_measures": [
+          "revenue",
+          "order_amount",
+          "order_count"
+        ]
+      },
+      "created_at": "2026-08-05T12:00:00Z",
+      "created_by": "consultant",
+      "governance_metadata": null,
+      "source_refs": [],
+      "parent_versions": []
+    },
+    {
+      "artefact_id": "00000000-0000-0000-0000-000000000003",
+      "run_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "artefact_type": "data_model",
+      "version": 1,
+      "payload": {
+        "name": "Sales star schema data model",
+        "description": "Logical star-schema data model realising the semantic model (Kimball conventions).",
+        "entities": [
+          {
+            "name": "FactOrder",
+            "description": "Central fact for sales / order analytics",
+            "attributes": [
+              {
+                "name": "order_sk",
+                "data_type": "string",
+                "nullable": false,
+                "description": null,
+                "governance_metadata": null
+              },
+              {
+                "name": "order_amount",
+                "data_type": "decimal",
+                "nullable": false,
+                "description": null,
+                "governance_metadata": null
+              },
+              {
+                "name": "order_count",
+                "data_type": "integer",
+                "nullable": false,
+                "description": null,
+                "governance_metadata": null
+              },
+              {
+                "name": "customer_sk",
+                "data_type": "string",
+                "nullable": false,
+                "description": null,
+                "governance_metadata": null
+              },
+              {
+                "name": "region_sk",
+                "data_type": "string",
+                "nullable": false,
+                "description": null,
+                "governance_metadata": null
+              },
+              {
+                "name": "date_sk",
+                "data_type": "string",
+                "nullable": false,
+                "description": null,
+                "governance_metadata": null
+              }
+            ],
+            "primary_key": [
+              "order_sk"
+            ]
+          },
+          {
+            "name": "DimCustomer",
+            "description": "Dimensional attribute 'Customer' for analytical slicing",
+            "attributes": [
+              {
+                "name": "customer_sk",
+                "data_type": "string",
+                "nullable": false,
+                "description": null,
+                "governance_metadata": null
+              },
+              {
+                "name": "customer_name",
+                "data_type": "string",
+                "nullable": true,
+                "description": null,
+                "governance_metadata": null
+              }
+            ],
+            "primary_key": [
+              "customer_sk"
+            ]
+          },
+          {
+            "name": "DimRegion",
+            "description": "Dimensional attribute 'Region' for analytical slicing",
+            "attributes": [
+              {
+                "name": "region_sk",
+                "data_type": "string",
+                "nullable": false,
+                "description": null,
+                "governance_metadata": null
+              },
+              {
+                "name": "region_name",
+                "data_type": "string",
+                "nullable": true,
+                "description": null,
+                "governance_metadata": null
+              }
+            ],
+            "primary_key": [
+              "region_sk"
+            ]
+          },
+          {
+            "name": "DimDate",
+            "description": "Dimensional attribute 'Date' for analytical slicing",
+            "attributes": [
+              {
+                "name": "date_sk",
+                "data_type": "string",
+                "nullable": false,
+                "description": null,
+                "governance_metadata": null
+              },
+              {
+                "name": "date_name",
+                "data_type": "string",
+                "nullable": true,
+                "description": null,
+                "governance_metadata": null
+              }
+            ],
+            "primary_key": [
+              "date_sk"
+            ]
+          }
+        ],
+        "relationships": [
+          {
+            "from_entity": "FactOrder",
+            "to_entity": "DimCustomer",
+            "from_keys": [
+              "customer_sk"
+            ],
+            "to_keys": [
+              "customer_sk"
+            ],
+            "cardinality": "many_to_one"
+          },
+          {
+            "from_entity": "FactOrder",
+            "to_entity": "DimRegion",
+            "from_keys": [
+              "region_sk"
+            ],
+            "to_keys": [
+              "region_sk"
+            ],
+            "cardinality": "many_to_one"
+          },
+          {
+            "from_entity": "FactOrder",
+            "to_entity": "DimDate",
+            "from_keys": [
+              "date_sk"
+            ],
+            "to_keys": [
+              "date_sk"
+            ],
+            "cardinality": "many_to_one"
+          }
+        ],
+        "mapping_context": {},
+        "governance_metadata": {
+          "sensitivity_labels": [
+            "commercial"
+          ],
+          "classifications": [
+            "internal"
+          ],
+          "access_notes": [
+            "Propagated from mapping / source visibility where available"
+          ],
+          "extra": {}
+        }
+      },
+      "created_at": "2026-08-05T12:00:00Z",
+      "created_by": "consultant",
+      "governance_metadata": {
+        "sensitivity_labels": [
+          "commercial"
+        ],
+        "classifications": [
+          "internal"
+        ],
+        "access_notes": [
+          "Propagated from mapping / source visibility where available"
+        ],
+        "extra": {}
+      },
+      "source_refs": [
+        {
+          "system": "fixture_catalogue",
+          "object_id": "analytics.sales.orders",
+          "display_name": null,
+          "metadata": {}
+        }
+      ],
+      "parent_versions": []
+    },
+    {
+      "artefact_id": "00000000-0000-0000-0000-000000000004",
+      "run_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "artefact_type": "semantic_model",
+      "version": 1,
+      "payload": {
+        "name": "Semantic model for: Sales analytics data product",
+        "description": "Kimball-oriented semantic model produced from approved technical requirements and mapping context.",
+        "metrics": [
+          {
+            "name": "revenue",
+            "definition": "Business measure 'revenue' derived from approved technical requirements",
+            "grain": "order"
+          },
+          {
+            "name": "order_amount",
+            "definition": "Business measure 'order amount' derived from approved technical requirements",
+            "grain": "order"
+          },
+          {
+            "name": "order_count",
+            "definition": "Business measure 'order count' derived from approved technical requirements",
+            "grain": "order"
+          }
+        ],
+        "dimensions": [
+          {
+            "name": "Customer",
+            "definition": "Dimensional attribute 'Customer' for analytical slicing",
+            "hierarchy": [
+              "Customer",
+              "All"
+            ]
+          },
+          {
+            "name": "Region",
+            "definition": "Dimensional attribute 'Region' for analytical slicing",
+            "hierarchy": [
+              "Region",
+              "All"
+            ]
+          },
+          {
+            "name": "Date",
+            "definition": "Dimensional attribute 'Date' for analytical slicing",
+            "hierarchy": [
+              "Day",
+              "Month",
+              "Year"
+            ]
+          }
+        ],
+        "relationships": [
+          {
+            "from_entity": "FactOrder",
+            "to_entity": "Customer",
+            "cardinality": "many_to_one",
+            "description": "FactOrder references dimension Customer"
+          },
+          {
+            "from_entity": "FactOrder",
+            "to_entity": "Region",
+            "cardinality": "many_to_one",
+            "description": "FactOrder references dimension Region"
+          },
+          {
+            "from_entity": "FactOrder",
+            "to_entity": "Date",
+            "cardinality": "many_to_one",
+            "description": "FactOrder references dimension Date"
+          }
+        ],
+        "business_definitions": {
+          "fact": "fact_order",
+          "intent": "Technical specification for: Sales analytics data product"
+        }
+      },
+      "created_at": "2026-08-05T12:00:00Z",
+      "created_by": "consultant",
+      "governance_metadata": null,
+      "source_refs": [],
+      "parent_versions": []
+    },
+    {
+      "artefact_id": "00000000-0000-0000-0000-000000000005",
+      "run_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "artefact_type": "pipeline_specification",
+      "version": 1,
+      "payload": {
+        "name": "Pipeline specification for: Semantic model for: Sales analytics data product",
+        "description": "Technology-agnostic pipeline specification for the approved data product (ingest \u2192 transform \u2192 validate \u2192 publish).",
+        "stages": [
+          {
+            "name": "ingest_sources",
+            "kind": "ingest",
+            "description": "Ingest permitted source objects into a staging area",
+            "inputs": [
+              "approved_source_catalogue"
+            ],
+            "outputs": [
+              "staging.raw_sales"
+            ],
+            "dependencies": []
+          },
+          {
+            "name": "transform_star_schema",
+            "kind": "transform",
+            "description": "Transform staging data into logical entities: FactOrder, DimCustomer, DimRegion, DimDate",
+            "inputs": [
+              "staging.raw_sales"
+            ],
+            "outputs": [
+              "curated.FactOrder",
+              "curated.DimCustomer",
+              "curated.DimRegion",
+              "curated.DimDate"
+            ],
+            "dependencies": [
+              "ingest_sources"
+            ]
+          },
+          {
+            "name": "validate_quality",
+            "kind": "validate",
+            "description": "Apply declarative data-quality and grain checks",
+            "inputs": [
+              "curated.FactOrder",
+              "curated.DimCustomer",
+              "curated.DimRegion",
+              "curated.DimDate"
+            ],
+            "outputs": [
+              "validated.star_schema"
+            ],
+            "dependencies": [
+              "transform_star_schema"
+            ]
+          },
+          {
+            "name": "publish_semantic",
+            "kind": "publish",
+            "description": "Publish semantic metrics for 'Semantic model for: Sales analytics data product'",
+            "inputs": [
+              "validated.star_schema"
+            ],
+            "outputs": [
+              "publish.semantic_ready"
+            ],
+            "dependencies": [
+              "validate_quality"
+            ]
+          }
+        ],
+        "orchestration_notes": "Linear DAG; no parallel branches in MVP path",
+        "validation_rules": [
+          "Primary keys must be non-null on FactOrder and dimension entities",
+          "Foreign keys from FactOrder to dimensions must resolve",
+          "Measures must match approved semantic metric names",
+          "Cover behaviour: Persist and version canonical artefacts for the requested data product",
+          "Cover behaviour: Support human review of generated technical requirements before mapping"
+        ],
+        "operational_behaviour": {
+          "schedule": "on_demand",
+          "retry_policy": "none_in_mvp"
+        },
+        "lineage_notes": [
+          "Each stage records input/output dataset names for Review Package traceability",
+          "Derived from semantic model 'Semantic model for: Sales analytics data product' and data model 'Sales star schema data model'"
+        ]
+      },
+      "created_at": "2026-08-05T12:00:00Z",
+      "created_by": "consultant",
+      "governance_metadata": null,
+      "source_refs": [],
+      "parent_versions": []
+    },
+    {
+      "artefact_id": "00000000-0000-0000-0000-000000000006",
+      "run_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "artefact_type": "metric_definitions",
+      "version": 1,
+      "payload": {
+        "name": "Metric definitions for: Semantic model for: Sales analytics data product",
+        "description": "Portable metric definitions for semantic model 'Semantic model for: Sales analytics data product'",
+        "metrics": [
+          {
+            "name": "revenue",
+            "description": "Business measure 'revenue' derived from approved technical requirements",
+            "calculation": "SUM(revenue)",
+            "aggregation": "sum",
+            "filters": [
+              "Respect constraint: Must not use HR or security datasets the consultant cannot access"
+            ],
+            "grain": "order",
+            "business_logic": null
+          },
+          {
+            "name": "order_amount",
+            "description": "Business measure 'order amount' derived from approved technical requirements",
+            "calculation": "SUM(order_amount)",
+            "aggregation": "sum",
+            "filters": [
+              "Respect constraint: Must not use HR or security datasets the consultant cannot access"
+            ],
+            "grain": "order",
+            "business_logic": null
+          },
+          {
+            "name": "order_count",
+            "description": "Business measure 'order count' derived from approved technical requirements",
+            "calculation": "COUNT(order_count)",
+            "aggregation": "count",
+            "filters": [
+              "Respect constraint: Must not use HR or security datasets the consultant cannot access"
+            ],
+            "grain": "order",
+            "business_logic": null
+          }
+        ]
+      },
+      "created_at": "2026-08-05T12:00:00Z",
+      "created_by": "consultant",
+      "governance_metadata": null,
+      "source_refs": [],
+      "parent_versions": []
+    },
+    {
+      "artefact_id": "00000000-0000-0000-0000-000000000007",
+      "run_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "artefact_type": "review_package",
+      "version": 1,
+      "payload": {
+        "title": "Review Package: Sales analytics review package",
+        "summary": "Consolidated review of 6 pinned artefact version(s) for 'Sales analytics review package'",
+        "pinned_artefacts": [
+          {
+            "artefact_id": "00000000-0000-0000-0000-000000000001",
+            "artefact_type": "business_requirement",
+            "version": 1,
+            "run_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+          },
+          {
+            "artefact_id": "00000000-0000-0000-0000-000000000002",
+            "artefact_type": "technical_requirement",
+            "version": 1,
+            "run_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+          },
+          {
+            "artefact_id": "00000000-0000-0000-0000-000000000004",
+            "artefact_type": "semantic_model",
+            "version": 1,
+            "run_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+          },
+          {
+            "artefact_id": "00000000-0000-0000-0000-000000000003",
+            "artefact_type": "data_model",
+            "version": 1,
+            "run_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+          },
+          {
+            "artefact_id": "00000000-0000-0000-0000-000000000005",
+            "artefact_type": "pipeline_specification",
+            "version": 1,
+            "run_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+          },
+          {
+            "artefact_id": "00000000-0000-0000-0000-000000000006",
+            "artefact_type": "metric_definitions",
+            "version": 1,
+            "run_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+          }
+        ],
+        "assumptions": [
+          "Kimball star-schema conventions guide Semantic and Data Models",
+          "Discovery and mapping used only user-visible source objects",
+          "Pipeline Specification is declarative and not vendor-executable in MVP"
+        ],
+        "traceability_notes": [
+          "Business Requirement \u2192 Technical Requirement \u2192 mapping Data Model",
+          "Technical Requirement + mapping \u2192 Semantic Model + Data Model",
+          "Modelling artefacts \u2192 Pipeline Specification + Metric Definitions",
+          "All prior artefacts pinned into this Review Package",
+          "Pinned business_requirement id=00000000-0000-0000-0000-000000000001 v1",
+          "Pinned technical_requirement id=00000000-0000-0000-0000-000000000002 v1",
+          "Pinned semantic_model id=00000000-0000-0000-0000-000000000004 v1",
+          "Pinned data_model id=00000000-0000-0000-0000-000000000003 v1",
+          "Pinned pipeline_specification id=00000000-0000-0000-0000-000000000005 v1",
+          "Pinned metric_definitions id=00000000-0000-0000-0000-000000000006 v1"
+        ],
+        "validation_results": [
+          "PASS: pipeline structure ok"
+        ],
+        "unresolved_questions": [
+          "Confirm grain of order_amount with business stakeholders before publish"
+        ],
+        "recommendations": [
+          "Approve the Review Package to mark the design path complete in-platform",
+          "Defer platform export to a future adapter milestone"
+        ],
+        "decision_state": "approved"
+      },
+      "created_at": "2026-08-05T12:00:00Z",
+      "created_by": "consultant",
+      "governance_metadata": {
+        "sensitivity_labels": [],
+        "classifications": [
+          "internal"
+        ],
+        "access_notes": [
+          "Approved package"
+        ],
+        "extra": {}
+      },
+      "source_refs": [],
+      "parent_versions": []
+    }
+  ]
+}

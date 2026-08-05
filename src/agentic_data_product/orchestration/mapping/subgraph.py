@@ -24,9 +24,12 @@ from agentic_data_product.domain.enums import ArtefactType
 from agentic_data_product.domain.lineage import CreateLineageEdgeRequest
 from agentic_data_product.domain.user_context import UserContext
 from agentic_data_product.integrations.discovery import (
+    DiscoveryPermissionError,
     discover_accessible_objects,
 )
 from agentic_data_product.integrations.discovery.fixtures import FixtureObject
+from agentic_data_product.observability.errors import ErrorCode
+from agentic_data_product.observability.logging_setup import log_app_error, log_event
 from agentic_data_product.orchestration.mapping.judge import (
     JudgeOutcome,
     evaluate_mapping_proposal,
@@ -50,9 +53,16 @@ def _session_factory(config: RunnableConfig) -> async_sessionmaker[AsyncSession]
 
 
 def _user_context_from_state(state: HitlGraphState) -> UserContext:
-    user_id = state.get("user_id") or state.get("created_by") or "consultant"
+    """Build discovery user context — fail closed when identity is absent."""
+    user_id = state.get("user_id")
+    if not user_id or not str(user_id).strip():
+        raise DiscoveryPermissionError(
+            "Discovery requires authenticated user context in graph state",
+            code=ErrorCode.DISCOVERY_USER_CONTEXT_REQUIRED,
+            context={"run_id": state.get("run_id"), "reason": "missing_user_id"},
+        )
     return UserContext(
-        user_id=user_id,
+        user_id=str(user_id).strip(),
         accessible_object_ids=state.get("accessible_object_ids"),
     )
 
@@ -62,14 +72,20 @@ def _fixture_to_dict(obj: FixtureObject) -> dict[str, Any]:
 
 
 async def discovery_node(state: HitlGraphState, config: RunnableConfig) -> dict[str, Any]:
-    """Fixture-first discovery filtered by user context."""
+    """Fixture-first discovery filtered by user context (fail closed)."""
     _ = config
-    ctx = _user_context_from_state(state)
-    objects = discover_accessible_objects(ctx)
-    logger.info(
-        "Discovery for user=%s returned %s objects",
-        ctx.user_id,
-        len(objects),
+    try:
+        ctx = _user_context_from_state(state)
+        objects = discover_accessible_objects(ctx)
+    except DiscoveryPermissionError as exc:
+        log_app_error(logger, exc, run_id=state.get("run_id"))
+        raise
+    log_event(
+        logger,
+        "discovery_completed",
+        run_id=state.get("run_id"),
+        user_id=ctx.user_id,
+        object_count=len(objects),
     )
     return {
         "discovered_objects": [_fixture_to_dict(o) for o in objects],

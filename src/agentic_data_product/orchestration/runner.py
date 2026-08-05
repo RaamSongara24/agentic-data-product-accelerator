@@ -21,6 +21,8 @@ from agentic_data_product.domain.run import (
     RunDetail,
     WorkflowRun,
 )
+from agentic_data_product.integrations.discovery import DiscoveryPermissionError
+from agentic_data_product.observability.errors import AppError, ErrorCode
 from agentic_data_product.orchestration.graph import CONFIGURABLE_SESSION_FACTORY
 from agentic_data_product.orchestration.state import HitlGraphState
 from agentic_data_product.persistence.store import (
@@ -90,11 +92,9 @@ class HitlRunner:
         if request.business_requirement is not None:
             seed = request.business_requirement.model_dump(mode="json")
 
-        user_id = (
-            request.user_context.user_id
-            if request.user_context is not None
-            else (request.created_by or "consultant")
-        )
+        # Fail closed for discovery: do not invent a default principal.
+        # Mapping discovery requires user_id; absent context yields empty user_id.
+        user_id = request.user_context.user_id if request.user_context is not None else None
         accessible = (
             request.user_context.accessible_object_ids if request.user_context is not None else None
         )
@@ -258,13 +258,22 @@ class HitlRunner:
 
 
 def map_runner_error(exc: Exception) -> tuple[int, str]:
-    """Map runner/store errors to (HTTP status, detail)."""
+    """Map runner/store/discovery errors to (HTTP status, detail)."""
     if isinstance(exc, NotFoundError):
         return 404, str(exc)
     if isinstance(exc, ConflictError):
         return 409, str(exc)
     if isinstance(exc, InvalidRunStateError):
         return 409, str(exc)
+    if isinstance(exc, DiscoveryPermissionError):
+        return 403, str(exc)
     if isinstance(exc, (HitlRunnerError, ArtefactStoreError)):
+        return 400, str(exc)
+    if isinstance(exc, AppError):
+        if exc.code in (
+            ErrorCode.DISCOVERY_PERMISSION_DENIED,
+            ErrorCode.DISCOVERY_USER_CONTEXT_REQUIRED,
+        ):
+            return 403, str(exc)
         return 400, str(exc)
     return 500, str(exc)
