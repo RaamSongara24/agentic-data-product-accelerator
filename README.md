@@ -4,7 +4,7 @@
 
 | | |
 | --- | --- |
-| **Status** | Milestone **M2** complete (HITL skeleton + durable checkpointer) |
+| **Status** | Milestone **M3** complete (requirements agent + mapping HITL) |
 | **MVP target** | September 2026 |
 | **Primary MVP user** | Data Consultant |
 | **Stack** | Python 3.12 · uv · FastAPI · LangGraph · PostgreSQL |
@@ -15,7 +15,7 @@
 
 The accelerator helps teams design analytics-ready data products faster. AI agents will produce a **canonical data product model**; humans approve each stage before the workflow continues. Platform-specific assets (for example Databricks pipelines) are generated later via **adapters**.
 
-**M0–M2 scope:** production-quality skeleton, typed canonical artefacts, ArtefactStore, audit/lineage, and a durable LangGraph HITL stub (Approve / Reject / Request revisions) with production `/runs` APIs. No real LLM agents, mapping subgraph, UI, or adapters yet.
+**M0–M3 scope:** production skeleton, typed canonical artefacts, ArtefactStore, audit/lineage, durable LangGraph HITL, Requirements Agent (BR→TR), fixture-first mapping subgraph with judge retry caps, and production `/runs` APIs. No UI, live source connectors, or adapters yet.
 
 Full product intent: [`PRODUCT_SPEC.md`](PRODUCT_SPEC.md).
 
@@ -45,7 +45,7 @@ flowchart TB
 
 Layers: **AI execution** (UI, API, LangGraph) → **canonical model** → **platform adapters**. Details: [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
-**M0–M2 implements:** FastAPI + config + logging + PostgreSQL (runs, artefacts, audit, lineage, LangGraph checkpoints) + ArtefactStore + HITL stub graph + `/health` + `/ready` + `/runs` + `/dev` persistence APIs.
+**M0–M3 implements:** FastAPI + config + logging + PostgreSQL + ArtefactStore + multi-stage HITL graph (TR + mapping) + LLM/discovery integrations + `/health` + `/ready` + `/runs` + `/dev` persistence APIs.
 
 ---
 
@@ -93,7 +93,7 @@ Implemented in **M2** (complete). See [`adr/005-human-in-the-loop-workflow.md`](
 | --- | --- |
 | Language / packaging | Python 3.12, **uv** |
 | API | **FastAPI** + Uvicorn |
-| Orchestration | **LangGraph** + PostgreSQL checkpointer (M2 HITL stub) |
+| Orchestration | **LangGraph** + PostgreSQL checkpointer (M3 requirements + mapping) |
 | Persistence | **PostgreSQL** 16 + SQLAlchemy async + asyncpg |
 | Quality | Ruff, Mypy, Pytest, Pre-commit, GitHub Actions |
 
@@ -107,9 +107,10 @@ Implemented in **M2** (complete). See [`adr/005-human-in-the-loop-workflow.md`](
 | **M0 scaffolding** | **Complete** — evidence in [`docs/milestones/M0/`](docs/milestones/M0/) |
 | **M1 domain + persistence** | **Complete** — evidence in [`docs/milestones/M1/`](docs/milestones/M1/) |
 | **M2 HITL skeleton** | **Complete** — evidence in [`docs/milestones/M2/`](docs/milestones/M2/) |
-| M3+ application features | Not started |
+| **M3 requirements + mapping** | **Complete** — evidence in [`docs/milestones/M3/`](docs/milestones/M3/) |
+| M4+ application features | Not started |
 
-Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close-out: [`docs/milestones/M0/`](docs/milestones/M0/), [`docs/milestones/M1/`](docs/milestones/M1/), [`docs/milestones/M2/`](docs/milestones/M2/).
+Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close-out: [`docs/milestones/M0/`](docs/milestones/M0/) … [`docs/milestones/M3/`](docs/milestones/M3/).
 
 ---
 
@@ -119,15 +120,16 @@ Assumptions: [`docs/M0_ASSUMPTIONS.md`](docs/M0_ASSUMPTIONS.md). Milestone close
 .
 ├── adr/
 ├── docs/
-│   └── milestones/M0/, M1/, M2/
+│   └── milestones/M0/, M1/, M2/, M3/
 ├── src/agentic_data_product/
 │   ├── app/                 # FastAPI (health/ready + /runs HITL + /dev)
-│   ├── config/              # pydantic-settings
+│   ├── config/              # pydantic-settings (incl. LLM + mapping caps)
 │   ├── observability/       # logging setup
 │   ├── persistence/         # DB, migrations, ArtefactStore
-│   ├── orchestration/       # LangGraph HITL stub + checkpointer (M2)
+│   ├── orchestration/       # LangGraph M3 graph + mapping + checkpointer
+│   ├── agents/              # Requirements Agent (BR → TR)
 │   ├── domain/              # canonical artefact + run/audit/lineage/review models
-│   ├── integrations/        # reserved
+│   ├── integrations/        # LLM clients + fixture discovery
 │   ├── adapters/            # reserved (M6)
 │   └── ui/                  # reserved (M5)
 ├── tests/unit/
@@ -182,27 +184,45 @@ curl -s http://127.0.0.1:8000/ready | python3 -m json.tool
 - `GET /health` — process liveness (always 200 if the app is up)  
 - `GET /ready` — PostgreSQL readiness (`200` ready / `503` unavailable)
 
-### 5. Production run / HITL APIs (M2)
+### 5. Production run / HITL APIs (M3)
 
 ```bash
-# Create a run — graph generates a stub Business Requirement and pauses for review
+# Create a run — persists BR, generates Technical Requirement, pauses for TR review
 curl -s -X POST http://127.0.0.1:8000/runs -H 'content-type: application/json' \
-  -d '{"title":"demo","created_by":"consultant"}' | python3 -m json.tool
+  -d '{
+    "title":"demo",
+    "created_by":"consultant",
+    "user_context":{"user_id":"consultant"},
+    "business_requirement":{
+      "title":"Sales analytics",
+      "intent":"Governed sales analytics data product",
+      "objectives":["Analyse order amounts by customer and region"],
+      "constraints":["Do not use inaccessible HR datasets"],
+      "success_criteria":["TR and mapping approved"]
+    }
+  }' | python3 -m json.tool
 
 # Inspect run (status, pending_review, latest_artefact)
 curl -s http://127.0.0.1:8000/runs/<run_id> | python3 -m json.tool
 
-# Submit a review decision: approve | reject | request_revisions
+# Approve Technical Requirement → mapping runs → waiting on Data Model slice
 curl -s -X POST http://127.0.0.1:8000/runs/<run_id>/reviews \
   -H 'content-type: application/json' \
-  -d '{"decision":"approve","comments":"ok","reviewer_id":"consultant"}' | python3 -m json.tool
+  -d '{"decision":"approve","comments":"TR ok","reviewer_id":"consultant"}' | python3 -m json.tool
+
+# Approve mapping → run status approved (M3 exit)
+curl -s -X POST http://127.0.0.1:8000/runs/<run_id>/reviews \
+  -H 'content-type: application/json' \
+  -d '{"decision":"approve","comments":"mapping ok","reviewer_id":"consultant"}' | python3 -m json.tool
 ```
 
 | Decision | Effect |
 | --- | --- |
-| `approve` | Run status → `approved` |
+| `approve` | Advance to next stage (TR → mapping; mapping → `approved`) |
 | `reject` | Run status → `terminated` |
-| `request_revisions` | New artefact version + return to `waiting_for_review` |
+| `request_revisions` | Regenerate current stage artefact + return to `waiting_for_review` |
+
+LLM config (optional): `LLM_PROVIDER=deterministic|openai_compatible`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_BASE_URL`. Mapping retry caps: `MAPPING_SCHEMA_RETRY_CAP`, `MAPPING_LOGIC_RETRY_CAP`.
 
 ### 6. Dev persistence APIs (M1)
 
@@ -254,7 +274,8 @@ uv run pre-commit run --all-files
 | **M0** | Scaffold: uv, FastAPI, Postgres connectivity — **complete** |
 | **M1** | Artefact schemas, ArtefactStore, audit/lineage — **complete** |
 | **M2** | LangGraph + HITL skeleton — **complete** |
-| **M3–M7** | Agents, UI, adapter, demo |
+| **M3** | Requirements + mapping — **complete** |
+| **M4–M7** | Modelling agents, UI, adapter, demo |
 
 See [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md).
 
@@ -277,6 +298,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md). Architecture decisions: [`adr/`](adr/)
 | [`docs/milestones/M0/`](docs/milestones/M0/) | M0 close-out evidence |
 | [`docs/milestones/M1/`](docs/milestones/M1/) | M1 close-out evidence |
 | [`docs/milestones/M2/`](docs/milestones/M2/) | M2 close-out evidence |
+| [`docs/milestones/M3/`](docs/milestones/M3/) | M3 close-out evidence |
 | [`adr/`](adr/) | Decision records |
 
 ---
